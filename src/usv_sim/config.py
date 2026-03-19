@@ -1,4 +1,4 @@
-# last update: 2026-03-18 22:09:12
+# last update: 2026-03-19 09:30:00
 # modifier: Claude Code
 
 from __future__ import annotations
@@ -91,6 +91,18 @@ class DefenderPolicyConfig:
 
 
 @dataclass(frozen=True)
+class AttackerBaselineConfig:
+    type: str
+    surge_nominal: float
+    surge_turning: float
+    surge_near_goal: float
+    heading_gain: float
+    yaw_rate_damping: float
+    heading_large_threshold: float
+    slowdown_distance: float
+
+
+@dataclass(frozen=True)
 class ProjectConfig:
     env: EnvConfig
     action: ActionConfig
@@ -99,6 +111,21 @@ class ProjectConfig:
     observation: ObservationConfig
     reward: RewardConfig
     defender_policy: DefenderPolicyConfig
+    attacker_baseline: AttackerBaselineConfig
+
+
+_DEFAULT_ATTACKER_BASELINE = {
+    "type": "goal_seeking",
+    "surge_nominal": 0.8,
+    "surge_turning": 0.3,
+    "surge_near_goal": 0.2,
+    "heading_gain": 1.5,
+    "yaw_rate_damping": 0.2,
+    "heading_large_threshold": 0.7854,
+    "slowdown_distance": 8.0,
+}
+
+_ALLOWED_RENDER_MODES = {None, "human"}
 
 
 def _ensure(condition: bool, message: str) -> None:
@@ -120,6 +147,7 @@ def _validate(cfg: ProjectConfig) -> None:
     _ensure(cfg.env.max_episode_steps >= 1, "env.max_episode_steps must be >= 1")
     _ensure(cfg.env.dt_env > 0.0, "env.dt_env must be > 0")
     _ensure(cfg.env.sim_substeps >= 1, "env.sim_substeps must be >= 1")
+    _ensure(cfg.env.render_mode in _ALLOWED_RENDER_MODES, "env.render_mode must be one of {null, 'human'} in v0.2")
 
     _ensure(cfg.action.max_surge_force > 0.0, "action.max_surge_force must be > 0")
     _ensure(cfg.action.max_yaw_moment > 0.0, "action.max_yaw_moment must be > 0")
@@ -161,7 +189,20 @@ def _validate(cfg: ProjectConfig) -> None:
     _ensure(width > min_width_for_spawn_goal, "boundary width is too small to satisfy spawn_clearance/goal_clearance")
     _ensure(height > min_height_for_spawn_goal, "boundary height is too small to satisfy spawn_clearance/goal_clearance")
 
-    _ensure(cfg.defender_policy.type == "pure_pursuit", "only defender_policy.type='pure_pursuit' is supported in v0.1")
+    _ensure(cfg.defender_policy.type == "pure_pursuit", "only defender_policy.type='pure_pursuit' is supported in v0.1/v0.2")
+
+    _ensure(cfg.attacker_baseline.type == "goal_seeking", "only attacker_baseline.type='goal_seeking' is supported in v0.2")
+    _ensure(0.0 <= cfg.attacker_baseline.surge_nominal <= 1.0, "attacker_baseline.surge_nominal must be in [0, 1]")
+    _ensure(0.0 <= cfg.attacker_baseline.surge_turning <= 1.0, "attacker_baseline.surge_turning must be in [0, 1]")
+    _ensure(0.0 <= cfg.attacker_baseline.surge_near_goal <= 1.0, "attacker_baseline.surge_near_goal must be in [0, 1]")
+    _ensure(cfg.attacker_baseline.heading_gain >= 0.0, "attacker_baseline.heading_gain must be >= 0")
+    _ensure(cfg.attacker_baseline.yaw_rate_damping >= 0.0, "attacker_baseline.yaw_rate_damping must be >= 0")
+    _ensure(0.0 <= cfg.attacker_baseline.heading_large_threshold <= 3.141592653589793, "attacker_baseline.heading_large_threshold must be in [0, pi]")
+    _ensure(cfg.attacker_baseline.slowdown_distance >= 0.0, "attacker_baseline.slowdown_distance must be >= 0")
+
+    if cfg.scenario.scenario_id == "baseline_validation":
+        _ensure(cfg.scenario.n_defenders == 0, "baseline_validation scenario must use n_defenders == 0")
+        _ensure(cfg.scenario.n_obstacles == 0, "baseline_validation scenario must use n_obstacles == 0")
 
 
 def load_config(path: str | Path) -> ProjectConfig:
@@ -169,6 +210,7 @@ def load_config(path: str | Path) -> ProjectConfig:
     with config_path.open("r", encoding="utf-8") as f:
         raw = yaml.safe_load(f)
 
+    attacker_baseline_raw = raw.get("attacker_baseline", _DEFAULT_ATTACKER_BASELINE)
     cfg = ProjectConfig(
         env=EnvConfig(**raw["env"]),
         action=ActionConfig(**raw["action"]),
@@ -180,6 +222,7 @@ def load_config(path: str | Path) -> ProjectConfig:
         observation=ObservationConfig(**raw["observation"]),
         reward=RewardConfig(**raw["reward"]),
         defender_policy=DefenderPolicyConfig(**raw["defender_policy"]),
+        attacker_baseline=AttackerBaselineConfig(**attacker_baseline_raw),
     )
     _validate(cfg)
     return cfg

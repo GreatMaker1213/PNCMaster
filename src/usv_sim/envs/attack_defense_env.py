@@ -1,4 +1,4 @@
-# last update: 2026-03-18 22:13:27
+# last update: 2026-03-19 09:32:00
 # modifier: Claude Code
 
 from __future__ import annotations
@@ -17,21 +17,34 @@ from usv_sim.dynamics.fossen3dof import Fossen3DOFDynamics
 from usv_sim.logging.rollout import RolloutRecorder
 from usv_sim.observation.builder import ObservationBuilder
 from usv_sim.policies.defender_pursuit import PurePursuitDefenderPolicy
+from usv_sim.rendering.simple_2d import Simple2DRenderer
 from usv_sim.reward.attack_defense_reward import AttackDefenseReward
 from usv_sim.scenarios.generator import ScenarioGenerator
 from usv_sim.termination.checker import TerminationChecker
 
 
-class AttackDefenseEnv(gym.Env):
-    metadata = {"render_modes": []}
+_RENDER_MODE_SENTINEL = object()
 
-    def __init__(self, cfg: ProjectConfig | None = None, config_path: str | Path | None = None) -> None:
+
+class AttackDefenseEnv(gym.Env):
+    metadata = {"render_modes": ["human"]}
+
+    def __init__(
+        self,
+        cfg: ProjectConfig | None = None,
+        config_path: str | Path | None = None,
+        render_mode: str | None | object = _RENDER_MODE_SENTINEL,
+    ) -> None:
         super().__init__()
         if cfg is None:
             if config_path is None:
                 raise ValueError("either cfg or config_path must be provided")
             cfg = load_config(config_path)
         self.cfg = cfg
+        resolved_render_mode = cfg.env.render_mode if render_mode is _RENDER_MODE_SENTINEL else render_mode
+        if resolved_render_mode not in {None, "human"}:
+            raise ValueError("render_mode must be one of {None, 'human'} in v0.2")
+        self.render_mode = resolved_render_mode
         self._generator = ScenarioGenerator(cfg)
         self._dynamics = Fossen3DOFDynamics(cfg.dynamics, cfg.action)
         self._defender_policy = PurePursuitDefenderPolicy(cfg.defender_policy)
@@ -40,6 +53,7 @@ class AttackDefenseEnv(gym.Env):
         self._reward = AttackDefenseReward(cfg.reward)
         self._termination = TerminationChecker(cfg)
         self._recorder = RolloutRecorder()
+        self._renderer: Simple2DRenderer | None = None
         self.action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(2,), dtype=np.float32)
         self.observation_space = gym.spaces.Dict(
             {
@@ -54,6 +68,7 @@ class AttackDefenseEnv(gym.Env):
         )
         self._world: WorldState | None = None
         self._last_episode_summary: dict | None = None
+        self._last_info: dict | None = None
         self._default_seed = 0
 
     def _make_reset_info(self, world: WorldState) -> dict:
@@ -76,6 +91,7 @@ class AttackDefenseEnv(gym.Env):
             "goal_distance": goal_distance,
             "min_defender_distance": min_defender_distance,
             "min_obstacle_clearance": min_obstacle_clearance,
+            "termination_reason": "not_terminated",
         }
 
     def _make_step_info(self, world: WorldState, events: StepEvents, reward_breakdown, termination_result) -> dict:
@@ -117,6 +133,7 @@ class AttackDefenseEnv(gym.Env):
         self._recorder.reset()
         self._recorder.start_episode(self._world, obs, info)
         self._last_episode_summary = None
+        self._last_info = info
         return obs, info
 
     def step(self, action: np.ndarray):
@@ -134,10 +151,23 @@ class AttackDefenseEnv(gym.Env):
         if termination_result.terminated or termination_result.truncated:
             self._last_episode_summary = self._recorder.finalize_episode()
             info["episode_summary"] = self._last_episode_summary
+        self._last_info = info
         return obs, float(reward_breakdown.total), termination_result.terminated, termination_result.truncated, info
 
     def render(self):
-        return None
+        if self.render_mode is None:
+            return None
+        if self._world is None:
+            raise RuntimeError("reset must be called before render")
+        if self.render_mode == "human":
+            if self._renderer is None:
+                self._renderer = Simple2DRenderer()
+            self._renderer.render_world(self._world, self._last_info)
+            return None
+        raise ValueError(f"unsupported render_mode: {self.render_mode}")
 
     def close(self):
+        if self._renderer is not None:
+            self._renderer.close()
+            self._renderer = None
         return None

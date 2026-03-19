@@ -1,4 +1,4 @@
-# last update: 2026-03-18 21:27:07
+# last update: 2026-03-19 09:30:00
 # modifier: Claude Code
 
 from __future__ import annotations
@@ -27,15 +27,40 @@ class ScenarioGenerator:
                 return False
         return True
 
-    def generate(self, seed: int) -> WorldState:
+    def _make_boundary(self) -> RectBoundary:
+        cfg = self._cfg.scenario.boundary
+        return RectBoundary(xmin=cfg.xmin, xmax=cfg.xmax, ymin=cfg.ymin, ymax=cfg.ymax)
+
+    def _generate_baseline_validation(self, seed: int) -> WorldState:
+        cfg = self._cfg.scenario
+        boundary = self._make_boundary()
+        attacker = USVState(
+            entity_id=0,
+            x=20.0,
+            y=50.0,
+            psi=0.0,
+            u=0.0,
+            v=0.0,
+            r=0.0,
+            radius=cfg.attacker_radius,
+        )
+        goal = GoalRegion(x=80.0, y=50.0, radius=cfg.goal_radius)
+        return WorldState(
+            sim_time=0.0,
+            step_count=0,
+            seed=seed,
+            scenario_id=cfg.scenario_id,
+            attacker=attacker,
+            defenders=tuple(),
+            obstacles=tuple(),
+            goal=goal,
+            boundary=boundary,
+        )
+
+    def _generate_default(self, seed: int) -> WorldState:
         rng = random.Random(seed)
         cfg = self._cfg.scenario
-        boundary = RectBoundary(
-            xmin=cfg.boundary.xmin,
-            xmax=cfg.boundary.xmax,
-            ymin=cfg.boundary.ymin,
-            ymax=cfg.boundary.ymax,
-        )
+        boundary = self._make_boundary()
 
         circles: list[tuple[float, float, float]] = []
 
@@ -109,3 +134,8 @@ class ScenarioGenerator:
             goal=goal,
             boundary=boundary,
         )
+
+    def generate(self, seed: int) -> WorldState:
+        if self._cfg.scenario.scenario_id == "baseline_validation":
+            return self._generate_baseline_validation(seed)
+        return self._generate_default(seed)
