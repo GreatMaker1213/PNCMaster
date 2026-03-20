@@ -1,5 +1,5 @@
-# last update: 2026-03-19 09:30:00
-# modifier: Claude Code
+# last update: 2026-03-20 11:20:00
+# modifier: Codex
 
 from __future__ import annotations
 
@@ -103,6 +103,39 @@ class AttackerBaselineConfig:
 
 
 @dataclass(frozen=True)
+class AttackerPolicyConfig:
+    type: str
+
+
+@dataclass(frozen=True)
+class AttackerAPFBaselineConfig:
+    attractive_gain: float
+    obstacle_repulsive_gain: float
+    defender_repulsive_gain: float
+    boundary_repulsive_gain: float
+    influence_radius: float
+    potential_eps: float
+    surge_nominal: float
+    surge_turning: float
+    surge_near_goal: float
+    heading_gain: float
+    yaw_rate_damping: float
+    heading_large_threshold: float
+    slowdown_distance: float
+
+
+@dataclass(frozen=True)
+class AttackerHeadingBaselineConfig:
+    surge_nominal: float
+    surge_turning: float
+    surge_near_goal: float
+    heading_gain: float
+    yaw_rate_damping: float
+    heading_large_threshold: float
+    slowdown_distance: float
+
+
+@dataclass(frozen=True)
 class ProjectConfig:
     env: EnvConfig
     action: ActionConfig
@@ -111,10 +144,19 @@ class ProjectConfig:
     observation: ObservationConfig
     reward: RewardConfig
     defender_policy: DefenderPolicyConfig
+    attacker_policy: AttackerPolicyConfig
+    attacker_goal_baseline: AttackerBaselineConfig
+    attacker_apf_baseline: AttackerAPFBaselineConfig
+    attacker_heading_baseline: AttackerHeadingBaselineConfig
+    # legacy compatibility field from v0.2
     attacker_baseline: AttackerBaselineConfig
 
 
-_DEFAULT_ATTACKER_BASELINE = {
+_DEFAULT_ATTACKER_POLICY = {
+    "type": "goal_seeking",
+}
+
+_DEFAULT_ATTACKER_GOAL_BASELINE = {
     "type": "goal_seeking",
     "surge_nominal": 0.8,
     "surge_turning": 0.3,
@@ -125,12 +167,58 @@ _DEFAULT_ATTACKER_BASELINE = {
     "slowdown_distance": 8.0,
 }
 
+_DEFAULT_ATTACKER_APF_BASELINE = {
+    "attractive_gain": 1.0,
+    "obstacle_repulsive_gain": 3.0,
+    "defender_repulsive_gain": 4.0,
+    "boundary_repulsive_gain": 2.0,
+    "influence_radius": 12.0,
+    "potential_eps": 0.25,
+    "surge_nominal": 0.7,
+    "surge_turning": 0.25,
+    "surge_near_goal": 0.2,
+    "heading_gain": 1.5,
+    "yaw_rate_damping": 0.2,
+    "heading_large_threshold": 0.7854,
+    "slowdown_distance": 8.0,
+}
+
+_DEFAULT_ATTACKER_HEADING_BASELINE = {
+    "surge_nominal": 0.8,
+    "surge_turning": 0.3,
+    "surge_near_goal": 0.2,
+    "heading_gain": 1.6,
+    "yaw_rate_damping": 0.25,
+    "heading_large_threshold": 0.7854,
+    "slowdown_distance": 8.0,
+}
+
 _ALLOWED_RENDER_MODES = {None, "human"}
+_ALLOWED_ATTACKER_POLICY_TYPES = {"goal_seeking", "apf", "heading_hold"}
 
 
 def _ensure(condition: bool, message: str) -> None:
     if not condition:
         raise ValueError(message)
+
+
+def _validate_speed_heading_profile(
+    name: str,
+    surge_nominal: float,
+    surge_turning: float,
+    surge_near_goal: float,
+    heading_gain: float,
+    yaw_rate_damping: float,
+    heading_large_threshold: float,
+    slowdown_distance: float,
+) -> None:
+    _ensure(0.0 <= surge_nominal <= 1.0, f"{name}.surge_nominal must be in [0, 1]")
+    _ensure(0.0 <= surge_turning <= 1.0, f"{name}.surge_turning must be in [0, 1]")
+    _ensure(0.0 <= surge_near_goal <= 1.0, f"{name}.surge_near_goal must be in [0, 1]")
+    _ensure(heading_gain >= 0.0, f"{name}.heading_gain must be >= 0")
+    _ensure(yaw_rate_damping >= 0.0, f"{name}.yaw_rate_damping must be >= 0")
+    _ensure(0.0 <= heading_large_threshold <= 3.141592653589793, f"{name}.heading_large_threshold must be in [0, pi]")
+    _ensure(slowdown_distance >= 0.0, f"{name}.slowdown_distance must be >= 0")
 
 
 def _validate(cfg: ProjectConfig) -> None:
@@ -191,14 +279,59 @@ def _validate(cfg: ProjectConfig) -> None:
 
     _ensure(cfg.defender_policy.type == "pure_pursuit", "only defender_policy.type='pure_pursuit' is supported in v0.1/v0.2")
 
-    _ensure(cfg.attacker_baseline.type == "goal_seeking", "only attacker_baseline.type='goal_seeking' is supported in v0.2")
-    _ensure(0.0 <= cfg.attacker_baseline.surge_nominal <= 1.0, "attacker_baseline.surge_nominal must be in [0, 1]")
-    _ensure(0.0 <= cfg.attacker_baseline.surge_turning <= 1.0, "attacker_baseline.surge_turning must be in [0, 1]")
-    _ensure(0.0 <= cfg.attacker_baseline.surge_near_goal <= 1.0, "attacker_baseline.surge_near_goal must be in [0, 1]")
-    _ensure(cfg.attacker_baseline.heading_gain >= 0.0, "attacker_baseline.heading_gain must be >= 0")
-    _ensure(cfg.attacker_baseline.yaw_rate_damping >= 0.0, "attacker_baseline.yaw_rate_damping must be >= 0")
-    _ensure(0.0 <= cfg.attacker_baseline.heading_large_threshold <= 3.141592653589793, "attacker_baseline.heading_large_threshold must be in [0, pi]")
-    _ensure(cfg.attacker_baseline.slowdown_distance >= 0.0, "attacker_baseline.slowdown_distance must be >= 0")
+    _ensure(cfg.attacker_policy.type in _ALLOWED_ATTACKER_POLICY_TYPES, "attacker_policy.type must be one of {'goal_seeking', 'apf', 'heading_hold'}")
+
+    _ensure(cfg.attacker_baseline.type == "goal_seeking", "legacy attacker_baseline.type must be 'goal_seeking'")
+    _validate_speed_heading_profile(
+        "attacker_baseline",
+        cfg.attacker_baseline.surge_nominal,
+        cfg.attacker_baseline.surge_turning,
+        cfg.attacker_baseline.surge_near_goal,
+        cfg.attacker_baseline.heading_gain,
+        cfg.attacker_baseline.yaw_rate_damping,
+        cfg.attacker_baseline.heading_large_threshold,
+        cfg.attacker_baseline.slowdown_distance,
+    )
+
+    _ensure(cfg.attacker_goal_baseline.type == "goal_seeking", "attacker_goal_baseline.type must be 'goal_seeking'")
+    _validate_speed_heading_profile(
+        "attacker_goal_baseline",
+        cfg.attacker_goal_baseline.surge_nominal,
+        cfg.attacker_goal_baseline.surge_turning,
+        cfg.attacker_goal_baseline.surge_near_goal,
+        cfg.attacker_goal_baseline.heading_gain,
+        cfg.attacker_goal_baseline.yaw_rate_damping,
+        cfg.attacker_goal_baseline.heading_large_threshold,
+        cfg.attacker_goal_baseline.slowdown_distance,
+    )
+
+    _validate_speed_heading_profile(
+        "attacker_heading_baseline",
+        cfg.attacker_heading_baseline.surge_nominal,
+        cfg.attacker_heading_baseline.surge_turning,
+        cfg.attacker_heading_baseline.surge_near_goal,
+        cfg.attacker_heading_baseline.heading_gain,
+        cfg.attacker_heading_baseline.yaw_rate_damping,
+        cfg.attacker_heading_baseline.heading_large_threshold,
+        cfg.attacker_heading_baseline.slowdown_distance,
+    )
+
+    _ensure(cfg.attacker_apf_baseline.attractive_gain >= 0.0, "attacker_apf_baseline.attractive_gain must be >= 0")
+    _ensure(cfg.attacker_apf_baseline.obstacle_repulsive_gain >= 0.0, "attacker_apf_baseline.obstacle_repulsive_gain must be >= 0")
+    _ensure(cfg.attacker_apf_baseline.defender_repulsive_gain >= 0.0, "attacker_apf_baseline.defender_repulsive_gain must be >= 0")
+    _ensure(cfg.attacker_apf_baseline.boundary_repulsive_gain >= 0.0, "attacker_apf_baseline.boundary_repulsive_gain must be >= 0")
+    _ensure(cfg.attacker_apf_baseline.influence_radius > 0.0, "attacker_apf_baseline.influence_radius must be > 0")
+    _ensure(cfg.attacker_apf_baseline.potential_eps > 0.0, "attacker_apf_baseline.potential_eps must be > 0")
+    _validate_speed_heading_profile(
+        "attacker_apf_baseline",
+        cfg.attacker_apf_baseline.surge_nominal,
+        cfg.attacker_apf_baseline.surge_turning,
+        cfg.attacker_apf_baseline.surge_near_goal,
+        cfg.attacker_apf_baseline.heading_gain,
+        cfg.attacker_apf_baseline.yaw_rate_damping,
+        cfg.attacker_apf_baseline.heading_large_threshold,
+        cfg.attacker_apf_baseline.slowdown_distance,
+    )
 
     if cfg.scenario.scenario_id == "baseline_validation":
         _ensure(cfg.scenario.n_defenders == 0, "baseline_validation scenario must use n_defenders == 0")
@@ -210,7 +343,12 @@ def load_config(path: str | Path) -> ProjectConfig:
     with config_path.open("r", encoding="utf-8") as f:
         raw = yaml.safe_load(f)
 
-    attacker_baseline_raw = raw.get("attacker_baseline", _DEFAULT_ATTACKER_BASELINE)
+    attacker_baseline_raw = raw.get("attacker_baseline", _DEFAULT_ATTACKER_GOAL_BASELINE)
+    legacy_policy_type = attacker_baseline_raw.get("type", _DEFAULT_ATTACKER_POLICY["type"])
+    attacker_policy_raw = raw.get("attacker_policy", {"type": legacy_policy_type})
+    attacker_goal_raw = raw.get("attacker_goal_baseline", attacker_baseline_raw)
+    attacker_apf_raw = raw.get("attacker_apf_baseline", _DEFAULT_ATTACKER_APF_BASELINE)
+    attacker_heading_raw = raw.get("attacker_heading_baseline", _DEFAULT_ATTACKER_HEADING_BASELINE)
     cfg = ProjectConfig(
         env=EnvConfig(**raw["env"]),
         action=ActionConfig(**raw["action"]),
@@ -222,6 +360,10 @@ def load_config(path: str | Path) -> ProjectConfig:
         observation=ObservationConfig(**raw["observation"]),
         reward=RewardConfig(**raw["reward"]),
         defender_policy=DefenderPolicyConfig(**raw["defender_policy"]),
+        attacker_policy=AttackerPolicyConfig(**attacker_policy_raw),
+        attacker_goal_baseline=AttackerBaselineConfig(**attacker_goal_raw),
+        attacker_apf_baseline=AttackerAPFBaselineConfig(**attacker_apf_raw),
+        attacker_heading_baseline=AttackerHeadingBaselineConfig(**attacker_heading_raw),
         attacker_baseline=AttackerBaselineConfig(**attacker_baseline_raw),
     )
     _validate(cfg)

@@ -1,17 +1,17 @@
-# last update: 2026-03-20 11:23:00
+# last update: 2026-03-20 11:26:00
 # modifier: Codex
 
 from __future__ import annotations
 
 import numpy as np
 
-from usv_sim.config import AttackerBaselineConfig
+from usv_sim.config import AttackerHeadingBaselineConfig
 from usv_sim.core.math_utils import clip
 from usv_sim.policies.base import AttackerPolicy
 
 
-class GoalSeekingAttackerPolicy(AttackerPolicy):
-    def __init__(self, cfg: AttackerBaselineConfig) -> None:
+class HeadingHoldAttackerPolicy(AttackerPolicy):
+    def __init__(self, cfg: AttackerHeadingBaselineConfig) -> None:
         self._cfg = cfg
 
     def reset(self, *, seed: int | None = None) -> None:
@@ -44,3 +44,4 @@ class GoalSeekingAttackerPolicy(AttackerPolicy):
             surge_cmd = self._cfg.surge_turning
 
         return np.array([surge_cmd, yaw_cmd], dtype=np.float32)
+

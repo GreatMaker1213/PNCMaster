@@ -1,5 +1,5 @@
-# last update: 2026-03-19 09:31:00
-# modifier: Claude Code
+# last update: 2026-03-20 11:23:00
+# modifier: Codex
 
 from __future__ import annotations
 
@@ -14,5 +14,8 @@ class DefenderPolicy:
 
 
 class AttackerPolicy:
+    def reset(self, *, seed: int | None = None) -> None:
+        del seed
+
     def act(self, obs: dict[str, np.ndarray]) -> np.ndarray:
         raise NotImplementedError

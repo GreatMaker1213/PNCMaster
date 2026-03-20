@@ -70,3 +70,29 @@
 - 将当前修复提交到 git，打上 `V0.2.1` tag 并推送远程仓库，形成可回退的稳定补丁版本。
 - 后续如继续扩展 render 能力，再考虑更严格地区分纯 `Agg` 与交互 backend，但应以可视化主链路稳定为前提。
 - 在进入 V0.3 开发前，以当前可正常演示的 V0.2.1 作为基线版本继续管理。
+
+## 2026-03-20（V0.3）
+
+### 当前进度
+- 完成 V0.3 开发文档收敛，明确 `T301~T309` 任务边界、benchmark 口径与验收标准。
+- 完成统一 attacker 策略接口收敛：`AttackerPolicy.reset(seed=...)` + `act(obs)`，并新增策略工厂统一创建入口。
+- 完成两类 classical baseline：`APFAttackerPolicy` 与 `HeadingHoldAttackerPolicy`，并保留 V0.2 `GoalSeekingAttackerPolicy` 对比链路。
+- 完成 benchmark 模块：`runner`、`evaluator`、`metrics`，支持多 seed 批量评测与统一结果统计。
+- 完成 V0.3 场景配置：`goal_only`、`obstacle_only`、`defender_pressure`，固定 seeds 为 `[0, 1, 2, 3, 4]`。
+- 完成 benchmark 结果落盘：`episodes.jsonl`、`episodes.csv`、`aggregate.json`，统一输出字段用于后续对比分析。
+- 完成 V0.3 demo 与测试补齐：新增 unit/integration/smoke 覆盖，形成 APF/heading/goal 的可回归对比链路。
+- 完成两项闭环补齐：  
+  1) aggregate 增加 `policy_config_name` 与 `seed_set_summary` 等字段；  
+  2) 将 `T302/T303` 验收标准固化为自动化集成测试断言。
+- 在 `RL` 环境完成验证：`pytest tests/unit tests/integration -q` 通过（39 passed）。
+
+### 当前结论
+- V0.3 已从“单策略可运行”升级为“多策略可比较”的研究验证平台形态。
+- APF、goal、heading-hold 已在统一 rollout/evaluation 入口下可复现运行，具备稳定 benchmark 基线能力。
+- V0.3 文档要求的关键闭环已完成：指标与元数据可稳定落盘，验收条件可自动回归校验。
+- 当前系统已满足“科研算法验证与快速迭代”目标层级，可作为后续 RL / MPC / RRT / CBF / belief control 接入基线。
+
+### 下一步建议
+- 冻结 V0.3 配置与测试基线，整理一次 `V0.3` 提交说明并打版本 tag。
+- 基于当前 benchmark 输出补一版标准对比脚本（表格 + 曲线），形成可直接引用的实验报告模板。
+- 在 V0.4 优先实现 `RLPolicyAdapter`（保持 action-level 接口不变），接入第一个学习型策略对比实验。
