@@ -1,10 +1,12 @@
-# last update: 2026-03-19 09:37:00
+# last update: 2026-03-20 09:25:00
 # modifier: Claude Code
 
 from __future__ import annotations
 
 import sys
 from pathlib import Path
+
+import matplotlib.pyplot as plt
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
@@ -31,6 +33,12 @@ def main() -> None:
             del reward
             env.render()
         print({"termination_reason": info["termination_reason"], "goal_distance": info["goal_distance"]})
+        # 默认后端为TkAgg，可交互，跳过判断
+        # if "agg" not in plt.get_backend().lower():
+        #     plt.ioff()
+        #     plt.show()
+        plt.ioff()
+        plt.show()
     finally:
         env.close()
 
