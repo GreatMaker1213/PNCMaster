@@ -1,6 +1,9 @@
-# last update: 2026-03-20 09:25:00
-# modifier: Claude Code
+# last update: 2026年3月21日 15点03分
+# modifier: KanviRen
 
+"""
+该脚本运行一个episode并实时渲染,用于观察效果
+"""
 from __future__ import annotations
 
 import sys
@@ -19,8 +22,9 @@ from usv_sim.policies.attacker_goal_baseline import GoalSeekingAttackerPolicy
 
 
 def main() -> None:
-    cfg = load_config(ROOT / "configs" / "v0_2_baseline_validation.yaml")
+    cfg = load_config(ROOT / "configs" / "v0_3_defender_pressure.yaml")
     env = AttackDefenseEnv(cfg=cfg, render_mode="human")
+    print("cfg.attacker_baseline:",cfg.attacker_baseline)
     policy = GoalSeekingAttackerPolicy(cfg.attacker_baseline)
     obs, info = env.reset(seed=0)
     env.render()

@@ -95,21 +95,12 @@ class WorldSimulator:
         current_defenders = world.defenders
         final_snapshot = self._evaluate(current_attacker, current_defenders, world.obstacles, world.goal, world.boundary)
 
+        defenders_action=tuple(self._defender_policy.act(current_defender,world) for current_defender in current_defenders)
+
         elapsed = 0.0
         for _ in range(self._cfg.env.sim_substeps):
             candidate_attacker = self._dynamics.step(current_attacker, attacker_action, self._dt_sim)
-            intermediate_world = WorldState(
-                sim_time=world.sim_time + elapsed + self._dt_sim,
-                step_count=world.step_count,
-                seed=world.seed,
-                scenario_id=world.scenario_id,
-                attacker=candidate_attacker,
-                defenders=current_defenders,
-                obstacles=world.obstacles,
-                goal=world.goal,
-                boundary=world.boundary,
-            )
-            candidate_defenders = tuple(self._step_defender(defender, intermediate_world) for defender in current_defenders)
+            candidate_defenders = tuple(self._dynamics.step(defender, defenders_action,self._dt_sim) for defender in current_defenders)
             snapshot = self._evaluate(candidate_attacker, candidate_defenders, world.obstacles, world.goal, world.boundary)
             current_attacker = candidate_attacker
             current_defenders = candidate_defenders

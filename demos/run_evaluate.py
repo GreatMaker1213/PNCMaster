@@ -1,5 +1,9 @@
-# last update: 2026-03-20 11:39:00
-# modifier: Codex
+# last update: 2026年3月21日 15点30分
+# modifier: KanviRen
+
+"""
+本脚用来测试一组指定配置的性能，并聚合指标输出到指定文件
+"""
 
 from __future__ import annotations
 
