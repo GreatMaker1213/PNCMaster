@@ -81,7 +81,7 @@ class ObservationBuilder:
 
         defender_rows = np.zeros((self._cfg.max_defenders, 7), dtype=np.float32)
         defender_mask = np.zeros((self._cfg.max_defenders,), dtype=np.float32)
-        visible_defenders = {d.entity_id: d for d in visible.defenders}
+        visible_defenders = {d.entity_id: d for d in visible.defenders} # build visible defenders dict:key=entity_id value=defender
         for idx, defender in enumerate(sorted(world.defenders, key=lambda item: item.entity_id)[: self._cfg.max_defenders]):
             if defender.entity_id not in visible_defenders:
                 continue

@@ -32,6 +32,9 @@ class ScenarioGenerator:
         return RectBoundary(xmin=cfg.xmin, xmax=cfg.xmax, ymin=cfg.ymin, ymax=cfg.ymax)
 
     def _generate_baseline_validation(self, seed: int) -> WorldState:
+        """
+        generate simplest scenario with fixed location
+        """
         cfg = self._cfg.scenario
         boundary = self._make_boundary()
         attacker = USVState(
@@ -58,6 +61,9 @@ class ScenarioGenerator:
         )
 
     def _generate_default(self, seed: int) -> WorldState:
+        """
+        generate simplest scenario with random position
+        """
         rng = random.Random(seed)
         cfg = self._cfg.scenario
         boundary = self._make_boundary()

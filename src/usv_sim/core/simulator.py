@@ -100,7 +100,7 @@ class WorldSimulator:
         elapsed = 0.0
         for _ in range(self._cfg.env.sim_substeps):
             candidate_attacker = self._dynamics.step(current_attacker, attacker_action, self._dt_sim)
-            candidate_defenders = tuple(self._dynamics.step(defender, defenders_action,self._dt_sim) for defender in current_defenders)
+            candidate_defenders = tuple(self._dynamics.step(defender, defender_action,self._dt_sim) for defender,defender_action in zip(current_defenders,defenders_action))
             snapshot = self._evaluate(candidate_attacker, candidate_defenders, world.obstacles, world.goal, world.boundary)
             current_attacker = candidate_attacker
             current_defenders = candidate_defenders

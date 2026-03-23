@@ -1,5 +1,5 @@
-# last update: 2026-03-18 22:09:12
-# modifier: Claude Code
+# last update: 2026-03-21 20点46分
+# modifier: KanviRen
 
 from __future__ import annotations
 
@@ -19,7 +19,8 @@ class VisibleEntities:
 class VisibilityFilter:
     def __init__(self, cfg: ObservationConfig) -> None:
         self._cfg = cfg
-
+    
+    # return defenders obstancles in the attacker's sense radius
     def select(self, world: WorldState) -> VisibleEntities:
         px = world.attacker.x
         py = world.attacker.y
