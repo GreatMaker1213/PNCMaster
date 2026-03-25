@@ -1,18 +1,27 @@
-# last update: 2026-03-20 11:26:00
+﻿# last update: 2026-03-23 16:40:00
 # modifier: Codex
 
 from __future__ import annotations
 
 import numpy as np
 
-from usv_sim.config import AttackerHeadingBaselineConfig
+from usv_sim.config import AttackerHeadingBaselineConfig, TrackingControllerConfig
 from usv_sim.core.math_utils import clip
 from usv_sim.policies.base import AttackerPolicy
 
 
+def _unused_controller_cfg(controller_cfg: TrackingControllerConfig | None) -> None:
+    del controller_cfg
+
+
 class HeadingHoldAttackerPolicy(AttackerPolicy):
-    def __init__(self, cfg: AttackerHeadingBaselineConfig) -> None:
+    def __init__(
+        self,
+        cfg: AttackerHeadingBaselineConfig,
+        controller_cfg: TrackingControllerConfig | None = None,
+    ) -> None:
         self._cfg = cfg
+        _unused_controller_cfg(controller_cfg)
 
     def reset(self, *, seed: int | None = None) -> None:
         del seed
@@ -44,4 +53,3 @@ class HeadingHoldAttackerPolicy(AttackerPolicy):
             surge_cmd = self._cfg.surge_turning
 
         return np.array([surge_cmd, yaw_cmd], dtype=np.float32)
-

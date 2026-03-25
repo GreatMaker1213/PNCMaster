@@ -1,46 +1,37 @@
-# last update: 2026-03-20 11:23:00
+﻿# last update: 2026-03-23 16:28:00
 # modifier: Codex
 
 from __future__ import annotations
 
-import numpy as np
-
-from usv_sim.config import AttackerBaselineConfig
-from usv_sim.core.math_utils import clip
+from usv_sim.config import AttackerBaselineConfig, TrackingControllerConfig
+from usv_sim.controllers.heading_speed import HeadingSpeedTrackingController
+from usv_sim.guidance.goal_guidance import GoalGuidance
 from usv_sim.policies.base import AttackerPolicy
+from usv_sim.policies.controller_backed import ControllerBackedAttackerPolicy
+
+
+_DEFAULT_TRACKING_CONTROLLER = TrackingControllerConfig(
+    type="heading_speed",
+    heading_gain=1.5,
+    yaw_rate_damping=0.2,
+    surge_gain=0.8,
+    desired_speed_max=3.0,
+)
 
 
 class GoalSeekingAttackerPolicy(AttackerPolicy):
-    def __init__(self, cfg: AttackerBaselineConfig) -> None:
-        self._cfg = cfg
+    def __init__(
+        self,
+        cfg: AttackerBaselineConfig,
+        controller_cfg: TrackingControllerConfig | None = None,
+    ) -> None:
+        resolved_controller_cfg = controller_cfg or _DEFAULT_TRACKING_CONTROLLER
+        guidance = GoalGuidance(cfg, desired_speed_max=resolved_controller_cfg.desired_speed_max)
+        controller = HeadingSpeedTrackingController(resolved_controller_cfg)
+        self._delegate = ControllerBackedAttackerPolicy(guidance, controller)
 
     def reset(self, *, seed: int | None = None) -> None:
-        del seed
+        self._delegate.reset(seed=seed)
 
-    def act(self, obs: dict[str, np.ndarray]) -> np.ndarray:
-        goal = np.asarray(obs["goal"], dtype=np.float64)
-        ego = np.asarray(obs["ego"], dtype=np.float64)
-        if goal.shape != (4,):
-            raise ValueError("obs['goal'] must have shape (4,)")
-        if ego.shape != (6,):
-            raise ValueError("obs['ego'] must have shape (6,)")
-
-        rel_x = float(goal[0])
-        rel_y = float(goal[1])
-        distance = float(goal[2])
-        goal_radius = float(goal[3])
-        yaw_rate = float(ego[2])
-
-        heading_error = float(np.arctan2(rel_y, rel_x))
-        yaw_cmd = clip(self._cfg.heading_gain * heading_error / np.pi - self._cfg.yaw_rate_damping * yaw_rate, -1.0, 1.0)
-
-        if distance <= goal_radius:
-            surge_cmd = 0.0
-        elif distance < self._cfg.slowdown_distance:
-            surge_cmd = self._cfg.surge_near_goal
-        elif abs(heading_error) < self._cfg.heading_large_threshold:
-            surge_cmd = self._cfg.surge_nominal
-        else:
-            surge_cmd = self._cfg.surge_turning
-
-        return np.array([surge_cmd, yaw_cmd], dtype=np.float32)
+    def act(self, obs):
+        return self._delegate.act(obs)

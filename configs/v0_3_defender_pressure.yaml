@@ -1,4 +1,4 @@
-# last update: 2026-03-20 11:44:00
+﻿# last update: 2026-03-23 16:45:00
 # modifier: Codex
 
 env:
@@ -36,8 +36,8 @@ scenario:
   defender_radius: 1.0
   goal_radius: 3.0
   capture_radius: 4.0
-  n_defenders: 1
-  n_obstacles: 0
+  n_defenders: 4
+  n_obstacles: 8
   obstacle_radius_min: 2.0
   obstacle_radius_max: 5.0
   spawn_clearance: 8.0
@@ -101,8 +101,17 @@ attacker_heading_baseline:
   heading_large_threshold: 0.7854
   slowdown_distance: 8.0
 
+tracking_controller:
+  type: heading_speed
+  heading_gain: 1.5
+  yaw_rate_damping: 0.2
+  surge_gain: 0.8
+  desired_speed_max: 3.0
+
 benchmark:
   name: defender_pressure
-  seeds: [0, 1, 2, 3, 4]
-  max_episodes: 5
+  seeds: [20,21, 22, 23, 24,25,262,7,28,292,120,121,212,123,214,215]
+  max_episodes: 15
+
+
 

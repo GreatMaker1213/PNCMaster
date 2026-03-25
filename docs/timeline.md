@@ -1,4 +1,4 @@
-# Timeline
+﻿# Timeline
 
 ## 2026-03-18
 
@@ -138,3 +138,85 @@
 - 以 `V0.4` 为基线更新主文档中的运行指引，统一推荐使用顶层 `play.py` 与 `evaluate.py`。
 - 继续推进 `V0.5`：聚焦 learning policy adapter、训练/评测配置分离与更系统的策略适配链路。
 - 在下一版本中补充自动化发布说明模板（含运行命令、输出目录规范、实验记录建议），降低协作成本。
+
+## 2026-03-23（V0.5）
+
+### 当前进度
+- 完成 V0.5 代码主线落地：在不改变 `AttackDefenseEnv`、`play.py`、`evaluate.py`、benchmark runner 外部使用方式的前提下，引入最小 controller 层。
+- 完成 `TrackingControllerConfig` 配置接入，在 `src/usv_sim/config.py` 中增加 `tracking_controller` 配置块、默认值、加载逻辑与校验逻辑。
+- 新增 `src/usv_sim/controllers/` 与 `src/usv_sim/guidance/` 模块，形成 `guidance -> reference -> controller -> env action` 的最小抽象链。
+- 完成 `HeadingSpeedReference`、`GuidancePolicy`、`GoalGuidance`、`APFGuidance`、`TrackingController`、`HeadingSpeedTrackingController` 的实现。
+- 新增 `src/usv_sim/policies/controller_backed.py`，将 guidance 与 controller 组合成仍满足 `AttackerPolicy.reset/act` 契约的统一对外策略对象。
+- 将 `GoalSeekingAttackerPolicy` 与 `APFAttackerPolicy` 迁移为 controller-backed 实现，并保留 `HeadingHoldAttackerPolicy` 的兼容 direct-action 版本以维持既有验收口径。
+- 更新 `src/usv_sim/policies/factory.py`，统一向 attacker policy 注入 `cfg.tracking_controller`，保证 V0.4 顶层入口和 V0.3 benchmark 链路无需改写。
+- 更新配置文件 `configs/v0_2_default.yaml`、`configs/v0_2_baseline_validation.yaml`、`configs/v0_3_goal_only.yaml`、`configs/v0_3_obstacle_only.yaml`、`configs/v0_3_defender_pressure.yaml`，显式增加 `tracking_controller` 配置块。
+- 补充 V0.5 单元测试与集成测试，覆盖 reference、controller、guidance、controller-backed policy 组合及与既有 benchmark 链路的兼容性。
+
+### 新增或改动文件
+- `src/usv_sim/config.py`
+  新增 `TrackingControllerConfig`、默认 controller 配置、校验与加载逻辑，并将其纳入 `ProjectConfig`。
+- `src/usv_sim/controllers/__init__.py`
+  暴露 controller 模块公共接口。
+- `src/usv_sim/controllers/base.py`
+  定义 `TrackingController` 基础接口。
+- `src/usv_sim/controllers/heading_speed.py`
+  实现最小 `HeadingSpeedTrackingController`，将 heading/surge reference 映射为 env action。
+- `src/usv_sim/guidance/__init__.py`
+  暴露 guidance 模块公共接口。
+- `src/usv_sim/guidance/base.py`
+  定义 `GuidancePolicy` 基础接口与期望 surge 速度解析辅助逻辑。
+- `src/usv_sim/guidance/reference.py`
+  定义 `HeadingSpeedReference` 数据结构。
+- `src/usv_sim/guidance/goal_guidance.py`
+  实现基于 goal observation 的最小 guidance。
+- `src/usv_sim/guidance/apf_guidance.py`
+  实现基于 APF 的最小 guidance，将势场方向转换为 reference。
+- `src/usv_sim/policies/controller_backed.py`
+  实现 `ControllerBackedAttackerPolicy`，对外继续暴露 `AttackerPolicy` 契约。
+- `src/usv_sim/policies/attacker_goal_baseline.py`
+  迁移为 `GoalGuidance + HeadingSpeedTrackingController` 的组合实现。
+- `src/usv_sim/policies/attacker_apf_baseline.py`
+  迁移为 `APFGuidance + HeadingSpeedTrackingController` 的组合实现。
+- `src/usv_sim/policies/attacker_heading_baseline.py`
+  迁移为兼容 `heading_hold` 语义的 controller-backed 实现。
+- `src/usv_sim/policies/factory.py`
+  改为统一向 attacker policy 注入 `tracking_controller` 配置。
+- `configs/v0_2_default.yaml`
+  显式增加 `tracking_controller` 配置块。
+- `configs/v0_2_baseline_validation.yaml`
+  显式增加 `tracking_controller` 配置块。
+- `configs/v0_3_goal_only.yaml`
+  显式增加 `tracking_controller` 配置块。
+- `configs/v0_3_obstacle_only.yaml`
+  显式增加 `tracking_controller` 配置块。
+- `configs/v0_3_defender_pressure.yaml`
+  显式增加 `tracking_controller` 配置块。
+- `tests/unit/test_heading_speed_reference.py`
+  验证 `HeadingSpeedReference` 字段与基本语义。
+- `tests/unit/test_heading_speed_controller.py`
+  验证 controller 输出 shape、dtype、范围与基本控制方向。
+- `tests/unit/test_goal_guidance.py`
+  验证 goal guidance 的 reference 输出方向与速度逻辑。
+- `tests/unit/test_apf_guidance.py`
+  验证 APF guidance 在障碍存在时能输出合理 reference。
+- `tests/unit/test_controller_backed_policy.py`
+  验证 guidance + controller 组合后仍满足 `AttackerPolicy` 契约。
+- `tests/integration/test_controller_entrypoint_compat.py`
+  验证 controller-backed policy 可以通过既有 benchmark runner 跑通一回合。
+- `docs/timeline.md`
+  记录本次 V0.5 开发内容与变更文件，方便协作开发者上手。
+
+### 当前结论
+- V0.5 已按“最小扰动”原则落地了最小 controller 架构：controller 插入点位于 `AttackerPolicy / factory` 一层，而非 env / simulator / dynamics 内部。
+- 现有 `play.py`、`evaluate.py`、benchmark runner/evaluator 的外部用法保持不变。
+- 当前平台已同时具备两类链路的工程基础：
+  1) traditional guidance/controller 路径；
+  2) future direct-action end-to-end 路径。
+- 本次实现没有承诺或引入 substep inner-loop controller 改造，符合 V0.5 第一阶段边界。
+
+### 下一步建议
+- 在 `RL` 环境中完成 V0.5 新增测试与既有入口测试回归，确认 controller-backed goal/apf 在当前 benchmark 上稳定可运行。
+- 后续如继续推进 V0.5，可优先增加 direct-action stub regression test，进一步保护 future RL/扩散/流匹配方法可跳过 controller 的路径。
+- 若进入 V0.6，再考虑在不破坏当前 V0.5 契约的前提下，引入更复杂的 planner/reference 类型与 safety filter 链路。
+
+

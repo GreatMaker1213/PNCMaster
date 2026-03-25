@@ -1,4 +1,4 @@
-# last update: 2026-03-20 11:30:00
+﻿# last update: 2026-03-23 16:28:00
 # modifier: Codex
 
 from __future__ import annotations
@@ -13,10 +13,9 @@ from usv_sim.policies.base import AttackerPolicy
 def create_attacker_policy(cfg: ProjectConfig, policy_type: str | None = None) -> AttackerPolicy:
     selected = policy_type or cfg.attacker_policy.type
     if selected == "goal_seeking":
-        return GoalSeekingAttackerPolicy(cfg.attacker_goal_baseline)
+        return GoalSeekingAttackerPolicy(cfg.attacker_goal_baseline, cfg.tracking_controller)
     if selected == "apf":
-        return APFAttackerPolicy(cfg.attacker_apf_baseline)
+        return APFAttackerPolicy(cfg.attacker_apf_baseline, cfg.tracking_controller)
     if selected == "heading_hold":
-        return HeadingHoldAttackerPolicy(cfg.attacker_heading_baseline)
+        return HeadingHoldAttackerPolicy(cfg.attacker_heading_baseline, cfg.tracking_controller)
     raise ValueError(f"unsupported attacker policy type: {selected}")
-

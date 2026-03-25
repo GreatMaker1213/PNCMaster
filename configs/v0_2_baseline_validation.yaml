@@ -1,5 +1,5 @@
-# last update: 2026-03-19 09:30:00
-# modifier: Claude Code
+﻿# last update: 2026-03-23 16:45:00
+# modifier: Codex
 
 env:
   max_episode_steps: 400
@@ -73,3 +73,12 @@ attacker_baseline:
   yaw_rate_damping: 0.2
   heading_large_threshold: 0.7854
   slowdown_distance: 8.0
+
+tracking_controller:
+  type: heading_speed
+  heading_gain: 1.5
+  yaw_rate_damping: 0.2
+  surge_gain: 0.8
+  desired_speed_max: 3.0
+
+

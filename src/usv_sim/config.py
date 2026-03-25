@@ -1,4 +1,4 @@
-# last update: 2026-03-20 11:20:00
+# last update: 2026-03-23 16:12:00
 # modifier: Codex
 
 from __future__ import annotations
@@ -103,6 +103,15 @@ class AttackerBaselineConfig:
 
 
 @dataclass(frozen=True)
+class TrackingControllerConfig:
+    type: str
+    heading_gain: float
+    yaw_rate_damping: float
+    surge_gain: float
+    desired_speed_max: float
+
+
+@dataclass(frozen=True)
 class AttackerPolicyConfig:
     type: str
 
@@ -148,8 +157,8 @@ class ProjectConfig:
     attacker_goal_baseline: AttackerBaselineConfig
     attacker_apf_baseline: AttackerAPFBaselineConfig
     attacker_heading_baseline: AttackerHeadingBaselineConfig
-    # legacy compatibility field from v0.2
     attacker_baseline: AttackerBaselineConfig
+    tracking_controller: TrackingControllerConfig
 
 
 _DEFAULT_ATTACKER_POLICY = {
@@ -193,8 +202,17 @@ _DEFAULT_ATTACKER_HEADING_BASELINE = {
     "slowdown_distance": 8.0,
 }
 
+_DEFAULT_TRACKING_CONTROLLER = {
+    "type": "heading_speed",
+    "heading_gain": 1.5,
+    "yaw_rate_damping": 0.2,
+    "surge_gain": 0.8,
+    "desired_speed_max": 3.0,
+}
+
 _ALLOWED_RENDER_MODES = {None, "human"}
 _ALLOWED_ATTACKER_POLICY_TYPES = {"goal_seeking", "apf", "heading_hold"}
+_ALLOWED_TRACKING_CONTROLLER_TYPES = {"heading_speed"}
 
 
 def _ensure(condition: bool, message: str) -> None:
@@ -235,7 +253,7 @@ def _validate(cfg: ProjectConfig) -> None:
     _ensure(cfg.env.max_episode_steps >= 1, "env.max_episode_steps must be >= 1")
     _ensure(cfg.env.dt_env > 0.0, "env.dt_env must be > 0")
     _ensure(cfg.env.sim_substeps >= 1, "env.sim_substeps must be >= 1")
-    _ensure(cfg.env.render_mode in _ALLOWED_RENDER_MODES, "env.render_mode must be one of {null, 'human'} in v0.2")
+    _ensure(cfg.env.render_mode in _ALLOWED_RENDER_MODES, "env.render_mode must be one of {null, 'human'}")
 
     _ensure(cfg.action.max_surge_force > 0.0, "action.max_surge_force must be > 0")
     _ensure(cfg.action.max_yaw_moment > 0.0, "action.max_yaw_moment must be > 0")
@@ -273,12 +291,10 @@ def _validate(cfg: ProjectConfig) -> None:
     _ensure(height > 2.0 * largest_body_radius, "boundary height is too small for configured geometry")
 
     min_width_for_spawn_goal = 2.0 * max(cfg.scenario.attacker_radius, cfg.scenario.goal_radius) + cfg.scenario.spawn_clearance + cfg.scenario.goal_clearance
-    min_height_for_spawn_goal = min_width_for_spawn_goal
     _ensure(width > min_width_for_spawn_goal, "boundary width is too small to satisfy spawn_clearance/goal_clearance")
-    _ensure(height > min_height_for_spawn_goal, "boundary height is too small to satisfy spawn_clearance/goal_clearance")
+    _ensure(height > min_width_for_spawn_goal, "boundary height is too small to satisfy spawn_clearance/goal_clearance")
 
-    _ensure(cfg.defender_policy.type == "pure_pursuit", "only defender_policy.type='pure_pursuit' is supported in v0.1/v0.2")
-
+    _ensure(cfg.defender_policy.type == "pure_pursuit", "only defender_policy.type='pure_pursuit' is supported")
     _ensure(cfg.attacker_policy.type in _ALLOWED_ATTACKER_POLICY_TYPES, "attacker_policy.type must be one of {'goal_seeking', 'apf', 'heading_hold'}")
 
     _ensure(cfg.attacker_baseline.type == "goal_seeking", "legacy attacker_baseline.type must be 'goal_seeking'")
@@ -333,6 +349,15 @@ def _validate(cfg: ProjectConfig) -> None:
         cfg.attacker_apf_baseline.slowdown_distance,
     )
 
+    _ensure(
+        cfg.tracking_controller.type in _ALLOWED_TRACKING_CONTROLLER_TYPES,
+        "tracking_controller.type must be one of {'heading_speed'}",
+    )
+    _ensure(cfg.tracking_controller.heading_gain >= 0.0, "tracking_controller.heading_gain must be >= 0")
+    _ensure(cfg.tracking_controller.yaw_rate_damping >= 0.0, "tracking_controller.yaw_rate_damping must be >= 0")
+    _ensure(cfg.tracking_controller.surge_gain >= 0.0, "tracking_controller.surge_gain must be >= 0")
+    _ensure(cfg.tracking_controller.desired_speed_max > 0.0, "tracking_controller.desired_speed_max must be > 0")
+
     if cfg.scenario.scenario_id == "baseline_validation":
         _ensure(cfg.scenario.n_defenders == 0, "baseline_validation scenario must use n_defenders == 0")
         _ensure(cfg.scenario.n_obstacles == 0, "baseline_validation scenario must use n_obstacles == 0")
@@ -340,8 +365,8 @@ def _validate(cfg: ProjectConfig) -> None:
 
 def load_config(path: str | Path) -> ProjectConfig:
     config_path = Path(path)
-    with config_path.open("r", encoding="utf-8") as f:
-        raw = yaml.safe_load(f)
+    with config_path.open("r", encoding="utf-8") as file:
+        raw = yaml.safe_load(file)
 
     attacker_baseline_raw = raw.get("attacker_baseline", _DEFAULT_ATTACKER_GOAL_BASELINE)
     legacy_policy_type = attacker_baseline_raw.get("type", _DEFAULT_ATTACKER_POLICY["type"])
@@ -349,6 +374,8 @@ def load_config(path: str | Path) -> ProjectConfig:
     attacker_goal_raw = raw.get("attacker_goal_baseline", attacker_baseline_raw)
     attacker_apf_raw = raw.get("attacker_apf_baseline", _DEFAULT_ATTACKER_APF_BASELINE)
     attacker_heading_raw = raw.get("attacker_heading_baseline", _DEFAULT_ATTACKER_HEADING_BASELINE)
+    tracking_controller_raw = raw.get("tracking_controller", _DEFAULT_TRACKING_CONTROLLER)
+
     cfg = ProjectConfig(
         env=EnvConfig(**raw["env"]),
         action=ActionConfig(**raw["action"]),
@@ -365,6 +392,7 @@ def load_config(path: str | Path) -> ProjectConfig:
         attacker_apf_baseline=AttackerAPFBaselineConfig(**attacker_apf_raw),
         attacker_heading_baseline=AttackerHeadingBaselineConfig(**attacker_heading_raw),
         attacker_baseline=AttackerBaselineConfig(**attacker_baseline_raw),
+        tracking_controller=TrackingControllerConfig(**tracking_controller_raw),
     )
     _validate(cfg)
     return cfg

@@ -1,4 +1,4 @@
-# last update: 2026-03-20 11:43:00
+﻿# last update: 2026-03-23 16:45:00
 # modifier: Codex
 
 env:
@@ -101,8 +101,17 @@ attacker_heading_baseline:
   heading_large_threshold: 0.7854
   slowdown_distance: 8.0
 
+tracking_controller:
+  type: heading_speed
+  heading_gain: 1.5
+  yaw_rate_damping: 0.2
+  surge_gain: 0.8
+  desired_speed_max: 3.0
+
 benchmark:
   name: obstacle_only
   seeds: [0, 1, 2, 3, 4]
   max_episodes: 5
+
+
 
