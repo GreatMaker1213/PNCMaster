@@ -1,5 +1,5 @@
-# last update: 2026-03-21 20点03分
-# modifier: KanviRen
+﻿# last update: 2026-03-25 10:40:00
+# modifier: Codex
 
 from __future__ import annotations
 
@@ -98,6 +98,7 @@ def _save_run_meta(
     run_meta = {
         "config_path": str(config_path.resolve()),
         "policy_type": resolved_policy,
+        "env_backend": aggregate.get("env_backend", "unknown"),
         "timestamp_utc": datetime.now(timezone.utc).isoformat(),
         "command": " ".join(command),
         "git_commit": _try_get_git_commit(),
@@ -141,4 +142,3 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

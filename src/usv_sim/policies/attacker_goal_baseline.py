@@ -1,21 +1,23 @@
-﻿# last update: 2026-03-23 16:28:00
+﻿# last update: 2026-03-25 11:05:00
 # modifier: Codex
 
 from __future__ import annotations
 
-from usv_sim.config import AttackerBaselineConfig, TrackingControllerConfig
-from usv_sim.controllers.heading_speed import HeadingSpeedTrackingController
+from usv_sim.config import AttackerBaselineConfig, VelocityTrackingControllerConfig
+from usv_sim.controllers.velocity_tracking import VelocityTrackingController
 from usv_sim.guidance.goal_guidance import GoalGuidance
 from usv_sim.policies.base import AttackerPolicy
 from usv_sim.policies.controller_backed import ControllerBackedAttackerPolicy
 
 
-_DEFAULT_TRACKING_CONTROLLER = TrackingControllerConfig(
-    type="heading_speed",
-    heading_gain=1.5,
-    yaw_rate_damping=0.2,
+_DEFAULT_VELOCITY_TRACKING_CONTROLLER = VelocityTrackingControllerConfig(
+    type="sideslip_compensated_velocity",
     surge_gain=0.8,
-    desired_speed_max=3.0,
+    yaw_rate_gain=1.6,
+    yaw_rate_damping=0.25,
+    sideslip_gain=0.4,
+    desired_surge_speed_max=3.0,
+    desired_yaw_rate_max=1.2,
 )
 
 
@@ -23,11 +25,15 @@ class GoalSeekingAttackerPolicy(AttackerPolicy):
     def __init__(
         self,
         cfg: AttackerBaselineConfig,
-        controller_cfg: TrackingControllerConfig | None = None,
+        controller_cfg: VelocityTrackingControllerConfig | None = None,
     ) -> None:
-        resolved_controller_cfg = controller_cfg or _DEFAULT_TRACKING_CONTROLLER
-        guidance = GoalGuidance(cfg, desired_speed_max=resolved_controller_cfg.desired_speed_max)
-        controller = HeadingSpeedTrackingController(resolved_controller_cfg)
+        resolved_cfg = controller_cfg or _DEFAULT_VELOCITY_TRACKING_CONTROLLER
+        guidance = GoalGuidance(
+            cfg,
+            desired_surge_speed_max=resolved_cfg.desired_surge_speed_max,
+            desired_yaw_rate_max=resolved_cfg.desired_yaw_rate_max,
+        )
+        controller = VelocityTrackingController(resolved_cfg)
         self._delegate = ControllerBackedAttackerPolicy(guidance, controller)
 
     def reset(self, *, seed: int | None = None) -> None:

@@ -1,4 +1,7 @@
-﻿# Timeline
+﻿> last update: 2026-03-25 11:18:00
+> modifier: Codex
+
+# Timeline
 
 ## 2026-03-18
 
@@ -219,4 +222,107 @@
 - 后续如继续推进 V0.5，可优先增加 direct-action stub regression test，进一步保护 future RL/扩散/流匹配方法可跳过 controller 的路径。
 - 若进入 V0.6，再考虑在不破坏当前 V0.5 契约的前提下，引入更复杂的 planner/reference 类型与 safety filter 链路。
 
+
+## 2026-03-25（V0.5.1）
+
+### 当前进度
+- 完成 V0.5.1 主线开发，在当前动态 env 保持低层 action 语义 `[surge_cmd, yaw_cmd]` 不变的前提下，引入更强的 velocity-tracking controller。
+- 完成局部规划统一输出升级：从 V0.5 的 `HeadingSpeedReference` 主路径转向 `DesiredVelocityReference(u_d, r_d)`，使局部规划器输出更接近当前 project 中局部规划算法的最大公共部分。
+- 完成 `VelocityTrackingControllerConfig` 配置接入，并为旧配置提供兼容回退，使未显式声明 `velocity_tracking_controller` 的历史配置仍可运行。
+- 完成 `VelocityTrackingController` 实现，在 yaw 通道中显式加入 yaw-rate tracking 与 sideslip 补偿项，用于缓解 V0.5 中明显的打滑问题。
+- 完成 `GoalGuidance` 与 `APFGuidance` 升级，改为直接输出 `DesiredVelocityReference`，便于同一 planner 输出同时接入动态 env 与纯运动学 env。
+- 新增 sibling env：`AttackDefenseKinematicEnv`，以及对应的 `Kinematic3DOF`、`KinematicWorldSimulator`、`KinematicPurePursuitDefenderPolicy`，用于直接执行规划器输出并观察 planner-only 效果。
+- 新增 `envs/factory.py`，统一根据 `cfg.env.backend` 创建动态 env 或运动学 env。
+- 更新 `play.py`、`evaluate.py`、`benchmark/runner.py`，改为通过 env factory 选后端，使入口脚本外部使用方式保持稳定。
+- 新增 V0.5.1 示例配置 `configs/v0_5_1_goal_only_dynamic.yaml` 与 `configs/v0_5_1_goal_only_kinematic.yaml`。
+- 补齐 V0.5.1 单元测试、集成测试与 smoke，覆盖新 reference、新 controller、kinematic backend 和入口兼容链路。
+- 在 `RL` 环境完成验证：
+  - `pytest tests/unit tests/integration -q`：`60 passed, 2 warnings`
+  - `python tests/smoke/test_env_smoke.py`：通过
+
+### 新增或改动文件
+- `src/usv_sim/config.py`
+  新增 `env.backend` 与 `VelocityTrackingControllerConfig`，并增加相应默认值、加载与校验逻辑。
+- `src/usv_sim/guidance/reference.py`
+  增加 `DesiredVelocityReference`，作为 V0.5.1 的局部规划统一输出结构。
+- `src/usv_sim/guidance/base.py`
+  将 guidance 主接口切换到 `DesiredVelocityReference`，并增加 `resolve_desired_yaw_rate(...)` 辅助逻辑。
+- `src/usv_sim/guidance/goal_guidance.py`
+  改为输出 `(u_d, r_d)` 形式的规划参考量。
+- `src/usv_sim/guidance/apf_guidance.py`
+  改为输出 `(u_d, r_d)` 形式的 APF 规划参考量。
+- `src/usv_sim/guidance/__init__.py`
+  暴露新的 reference 类型与 guidance 模块公共接口。
+- `src/usv_sim/controllers/base.py`
+  继续作为 controller 抽象基类，放宽 reference 类型约束以兼容 V0.5.1 新 reference。
+- `src/usv_sim/controllers/velocity_tracking.py`
+  新增 stronger controller，实现基于 `u, v, r` 的 velocity tracking + sideslip compensation。
+- `src/usv_sim/controllers/__init__.py`
+  暴露新的 `VelocityTrackingController`。
+- `src/usv_sim/dynamics/kinematic3dof.py`
+  新增运动学推进器，按 `(u_d, r_d, dt)` 推进状态。
+- `src/usv_sim/core/kinematic_simulator.py`
+  新增运动学版本 simulator，复用现有任务事件判定逻辑。
+- `src/usv_sim/policies/defender_pursuit_kinematic.py`
+  新增运动学 defender 策略，输出 `(u_d, r_d)`。
+- `src/usv_sim/envs/attack_defense_kinematic_env.py`
+  新增 sibling 纯运动学 env，与动态 env 共享场景/观测/奖励/终止语义。
+- `src/usv_sim/envs/factory.py`
+  新增 env factory，统一创建 dynamic 或 kinematic env。
+- `src/usv_sim/policies/controller_backed.py`
+  新增 `ReferenceBackedAttackerPolicy`，用于让 planner 输出直接作为 kinematic env 的上层输入。
+- `src/usv_sim/policies/attacker_goal_baseline.py`
+  改为使用新 velocity controller 的动态路径实现。
+- `src/usv_sim/policies/attacker_apf_baseline.py`
+  改为使用新 velocity controller 的动态路径实现。
+- `src/usv_sim/policies/attacker_heading_baseline.py`
+  保留动态 direct-action `heading_hold`，并增加 `HeadingHoldVelocityGuidance` 供 kinematic backend 使用。
+- `src/usv_sim/policies/factory.py`
+  改为同时按 `policy_type` 和 `env.backend` 创建动态后端或运动学后端所需策略。
+- `src/usv_sim/__init__.py`
+  增加 `AttackDefenseKinematicEnv` 与 `create_env` 的延迟导出。
+- `src/usv_sim/benchmark/runner.py`
+  改为通过 env factory 创建 env，并在 episode/aggregate 中记录 `env_backend`。
+- `src/usv_sim/benchmark/metrics.py`
+  聚合输出增加 `env_backend` 字段。
+- `play.py`
+  改为通过 env factory 选择后端，summary 增加 `env_backend`。
+- `evaluate.py`
+  `run_meta.json` 与输出打印增加 `env_backend` 语义。
+- `configs/v0_5_1_goal_only_dynamic.yaml`
+  新增 V0.5.1 动态 env 示例配置。
+- `configs/v0_5_1_goal_only_kinematic.yaml`
+  新增 V0.5.1 运动学 env 示例配置。
+- `tests/unit/test_heading_speed_reference.py`
+  补充 `DesiredVelocityReference` 的单元测试。
+- `tests/unit/test_velocity_tracking_controller.py`
+  新增 stronger controller 单元测试。
+- `tests/unit/test_goal_guidance.py`
+  更新为验证 `GoalGuidance` 输出 `DesiredVelocityReference`。
+- `tests/unit/test_apf_guidance.py`
+  更新为验证 `APFGuidance` 输出 `DesiredVelocityReference`。
+- `tests/unit/test_controller_backed_policy.py`
+  新增 `ReferenceBackedAttackerPolicy` 覆盖，并适配新的 reference 语义。
+- `tests/integration/test_controller_entrypoint_compat.py`
+  改为同时验证 dynamic / kinematic 两个 backend 的插入点兼容性。
+- `tests/integration/test_play_entrypoint.py`
+  增加 kinematic backend 的入口测试。
+- `tests/integration/test_evaluate_entrypoint.py`
+  增加 kinematic backend 的评估入口测试。
+- `tests/smoke/test_env_smoke.py`
+  补充 `goal_only_kinematic` smoke，并改为通过 env factory / policy factory 走正式链路。
+- `docs/timeline.md`
+  记录本次 V0.5.1 开发内容，方便协作开发者上手。
+
+### 当前结论
+- V0.5.1 已完成两条后端链路的打通：
+  1) `DesiredVelocityReference -> stronger controller -> dynamic env`
+  2) `DesiredVelocityReference -> kinematic env`
+- 当前 project 已具备区分“planner 本身效果”和“planner + controller + dynamics 效果”的基础设施。
+- 本次实现继续保持最小扰动原则：未重写 `AttackDefenseEnv`、`WorldSimulator`、`Fossen3DOFDynamics` 的主语义，也没有改变 `play.py` / `evaluate.py` 的外部命令形式。
+
+### 下一步建议
+- 在固定 benchmark 场景下量化比较 V0.5 与 V0.5.1 controller 的侧滑指标，例如 `mean_abs_sideslip_angle` 与 `mean_abs_sway_velocity`。
+- 继续补 planner-only 与 dynamic backend 的对照实验模板，使 `evaluate.py` 可以直接产出 dynamic vs kinematic 对照结果。
+- 后续若进入 V0.5.2/V0.6，可继续考虑更高层的 waypoint/path/trajectory reference 与 safety filter 链路。
 

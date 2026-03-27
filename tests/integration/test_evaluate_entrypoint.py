@@ -1,6 +1,5 @@
-# last update: 2026-03-21 20点03分
-# modifier: KanviRen
-
+﻿# last update: 2026-03-25 11:00:00
+# modifier: Codex
 
 from __future__ import annotations
 
@@ -46,6 +45,27 @@ def test_evaluate_entrypoint_writes_expected_outputs() -> None:
         assert "policy_type" in run_meta
         assert "timestamp_utc" in run_meta
         assert "git_commit" in run_meta
+    finally:
+        if output_dir.exists():
+            shutil.rmtree(output_dir)
+
+
+def test_evaluate_entrypoint_kinematic_backend() -> None:
+    output_dir = _new_workspace_output_dir("test_eval_kin")
+    try:
+        rc = evaluate.main(
+            [
+                "--config",
+                str(ROOT / "configs" / "v0_5_1_goal_only_kinematic.yaml"),
+                "--policy",
+                "goal_seeking",
+                "--output-dir",
+                str(output_dir),
+            ]
+        )
+        assert rc == 0
+        aggregate = json.loads((output_dir / "aggregate.json").read_text(encoding="utf-8"))
+        assert aggregate["env_backend"] == "kinematic"
     finally:
         if output_dir.exists():
             shutil.rmtree(output_dir)

@@ -1,4 +1,4 @@
-﻿# last update: 2026-03-23 16:26:00
+# last update: 2026-03-25 10:09:00
 # modifier: Codex
 
 from __future__ import annotations
@@ -7,15 +7,24 @@ import math
 
 import numpy as np
 
+from usv_sim.config import AttackerAPFBaselineConfig
 from usv_sim.core.math_utils import world_to_ego
-from usv_sim.guidance.base import GuidancePolicy, resolve_desired_surge_speed
-from usv_sim.guidance.reference import HeadingSpeedReference
+from usv_sim.guidance.base import GuidancePolicy, resolve_desired_surge_speed, resolve_desired_yaw_rate
+from usv_sim.guidance.reference import DesiredVelocityReference
 
+np.set_printoptions(suppress=True, precision=4)
 
 class APFGuidance(GuidancePolicy):
-    def __init__(self, cfg, *, desired_speed_max: float = 1.0) -> None:
+    def __init__(
+        self,
+        cfg: AttackerAPFBaselineConfig,
+        *,
+        desired_surge_speed_max: float,
+        desired_yaw_rate_max: float,
+    ) -> None:
         self._cfg = cfg
-        self._desired_speed_max = float(desired_speed_max)
+        self._desired_surge_speed_max = float(desired_surge_speed_max)
+        self._desired_yaw_rate_max = float(desired_yaw_rate_max)
 
     def _repulsive_force(self, rel_x: float, rel_y: float, gain: float) -> np.ndarray:
         radius = float(self._cfg.influence_radius)
@@ -26,6 +35,7 @@ class APFGuidance(GuidancePolicy):
         scale = -gain * (1.0 / distance - 1.0 / radius) / (distance * distance)
         unit_x = rel_x / distance
         unit_y = rel_y / distance
+        print(f"gain={gain} dis={distance} scale:{scale:.4f}")
         return np.array([scale * unit_x, scale * unit_y], dtype=np.float64)
 
     def _boundary_repulsive_force(self, boundary: np.ndarray, psi: float) -> np.ndarray:
@@ -55,7 +65,7 @@ class APFGuidance(GuidancePolicy):
         ego_fx, ego_fy = world_to_ego(world_fx, world_fy, psi)
         return np.array([ego_fx, ego_fy], dtype=np.float64)
 
-    def plan(self, obs: dict[str, np.ndarray]) -> HeadingSpeedReference:
+    def plan(self, obs: dict[str, np.ndarray]) -> DesiredVelocityReference:
         goal = np.asarray(obs["goal"], dtype=np.float64)
         ego = np.asarray(obs["ego"], dtype=np.float64)
         boundary = np.asarray(obs["boundary"], dtype=np.float64)
@@ -82,7 +92,8 @@ class APFGuidance(GuidancePolicy):
             ],
             dtype=np.float64,
         )
-
+        print("="*60)
+        print(f"atta force:{force_total}")
         for index, mask_value in enumerate(obstacles_mask.tolist()):
             if float(mask_value) < 0.5:
                 continue
@@ -100,25 +111,31 @@ class APFGuidance(GuidancePolicy):
                 float(defenders[index, 1]),
                 float(self._cfg.defender_repulsive_gain),
             )
-
         force_total += self._boundary_repulsive_force(boundary, psi)
+        
         force_norm = float(np.hypot(force_total[0], force_total[1]))
         if not np.isfinite(force_norm) or force_norm < float(self._cfg.potential_eps):
             force_total = np.array([goal_rel_x, goal_rel_y], dtype=np.float64)
 
         heading_error = float(math.atan2(force_total[1], force_total[0]))
+        print(f"force total:{force_total};heading error:{heading_error:.4f}")
         desired_speed = resolve_desired_surge_speed(
             distance=distance,
             goal_radius=goal_radius,
             heading_error=heading_error,
-            desired_speed_max=self._desired_speed_max,
+            desired_speed_max=self._desired_surge_speed_max,
             surge_nominal=float(self._cfg.surge_nominal),
             surge_turning=float(self._cfg.surge_turning),
             surge_near_goal=float(self._cfg.surge_near_goal),
             heading_large_threshold=float(self._cfg.heading_large_threshold),
             slowdown_distance=float(self._cfg.slowdown_distance),
         )
-        return HeadingSpeedReference(
-            desired_heading_error=heading_error,
+        desired_yaw_rate = resolve_desired_yaw_rate(
+            heading_error=heading_error,
+            heading_gain=float(self._cfg.heading_gain),
+            desired_yaw_rate_max=self._desired_yaw_rate_max,
+        )
+        return DesiredVelocityReference(
             desired_surge_speed=desired_speed,
+            desired_yaw_rate=desired_yaw_rate,
         )

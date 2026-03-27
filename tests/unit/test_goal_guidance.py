@@ -1,11 +1,11 @@
-# last update: 2026-03-23 15:22:00
+﻿# last update: 2026-03-25 10:55:00
 # modifier: Codex
 
 import numpy as np
 from types import SimpleNamespace
 
 from usv_sim.guidance.goal_guidance import GoalGuidance
-from usv_sim.guidance.reference import HeadingSpeedReference
+from usv_sim.guidance.reference import DesiredVelocityReference
 
 
 def _build_obs(y_offset: float) -> dict[str, np.ndarray]:
@@ -16,18 +16,17 @@ def _build_obs(y_offset: float) -> dict[str, np.ndarray]:
     }
 
 
-def test_goal_guidance_plan_aligns_with_goal_direction() -> None:
+def test_goal_guidance_outputs_desired_velocity_reference() -> None:
     cfg = SimpleNamespace(
         heading_gain=1.5,
-        yaw_rate_damping=0.2,
         surge_nominal=0.8,
         surge_turning=0.3,
         surge_near_goal=0.2,
         heading_large_threshold=0.7854,
         slowdown_distance=8.0,
     )
-    guidance = GoalGuidance(cfg)
+    guidance = GoalGuidance(cfg, desired_surge_speed_max=3.0, desired_yaw_rate_max=1.2)
     reference = guidance.plan(_build_obs(y_offset=5.0))
-    assert isinstance(reference, HeadingSpeedReference)
-    assert reference.desired_heading_error > 0.0
-    assert reference.desired_surge_speed <= cfg.surge_nominal
+    assert isinstance(reference, DesiredVelocityReference)
+    assert reference.desired_yaw_rate > 0.0
+    assert 0.0 <= reference.desired_surge_speed <= 3.0

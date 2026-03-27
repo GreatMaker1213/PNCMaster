@@ -1,4 +1,4 @@
-# last update: 2026-03-23 16:12:00
+﻿# last update: 2026-03-25 11:12:00
 # modifier: Codex
 
 from __future__ import annotations
@@ -81,6 +81,7 @@ class EnvConfig:
     dt_env: float
     sim_substeps: int
     render_mode: str | None
+    backend: str = "dynamic"
 
 
 @dataclass(frozen=True)
@@ -109,6 +110,17 @@ class TrackingControllerConfig:
     yaw_rate_damping: float
     surge_gain: float
     desired_speed_max: float
+
+
+@dataclass(frozen=True)
+class VelocityTrackingControllerConfig:
+    type: str
+    surge_gain: float
+    yaw_rate_gain: float
+    yaw_rate_damping: float
+    sideslip_gain: float
+    desired_surge_speed_max: float
+    desired_yaw_rate_max: float
 
 
 @dataclass(frozen=True)
@@ -159,6 +171,7 @@ class ProjectConfig:
     attacker_heading_baseline: AttackerHeadingBaselineConfig
     attacker_baseline: AttackerBaselineConfig
     tracking_controller: TrackingControllerConfig
+    velocity_tracking_controller: VelocityTrackingControllerConfig
 
 
 _DEFAULT_ATTACKER_POLICY = {
@@ -210,9 +223,21 @@ _DEFAULT_TRACKING_CONTROLLER = {
     "desired_speed_max": 3.0,
 }
 
+_DEFAULT_VELOCITY_TRACKING_CONTROLLER = {
+    "type": "sideslip_compensated_velocity",
+    "surge_gain": 0.8,
+    "yaw_rate_gain": 1.6,
+    "yaw_rate_damping": 0.25,
+    "sideslip_gain": 0.4,
+    "desired_surge_speed_max": 3.0,
+    "desired_yaw_rate_max": 1.2,
+}
+
 _ALLOWED_RENDER_MODES = {None, "human"}
 _ALLOWED_ATTACKER_POLICY_TYPES = {"goal_seeking", "apf", "heading_hold"}
 _ALLOWED_TRACKING_CONTROLLER_TYPES = {"heading_speed"}
+_ALLOWED_VELOCITY_TRACKING_CONTROLLER_TYPES = {"sideslip_compensated_velocity"}
+_ALLOWED_ENV_BACKENDS = {"dynamic", "kinematic"}
 
 
 def _ensure(condition: bool, message: str) -> None:
@@ -254,6 +279,7 @@ def _validate(cfg: ProjectConfig) -> None:
     _ensure(cfg.env.dt_env > 0.0, "env.dt_env must be > 0")
     _ensure(cfg.env.sim_substeps >= 1, "env.sim_substeps must be >= 1")
     _ensure(cfg.env.render_mode in _ALLOWED_RENDER_MODES, "env.render_mode must be one of {null, 'human'}")
+    _ensure(cfg.env.backend in _ALLOWED_ENV_BACKENDS, "env.backend must be one of {'dynamic', 'kinematic'}")
 
     _ensure(cfg.action.max_surge_force > 0.0, "action.max_surge_force must be > 0")
     _ensure(cfg.action.max_yaw_moment > 0.0, "action.max_yaw_moment must be > 0")
@@ -357,6 +383,33 @@ def _validate(cfg: ProjectConfig) -> None:
     _ensure(cfg.tracking_controller.yaw_rate_damping >= 0.0, "tracking_controller.yaw_rate_damping must be >= 0")
     _ensure(cfg.tracking_controller.surge_gain >= 0.0, "tracking_controller.surge_gain must be >= 0")
     _ensure(cfg.tracking_controller.desired_speed_max > 0.0, "tracking_controller.desired_speed_max must be > 0")
+    _ensure(
+        cfg.velocity_tracking_controller.type in _ALLOWED_VELOCITY_TRACKING_CONTROLLER_TYPES,
+        "velocity_tracking_controller.type must be one of {'sideslip_compensated_velocity'}",
+    )
+    _ensure(cfg.velocity_tracking_controller.surge_gain >= 0.0, "velocity_tracking_controller.surge_gain must be >= 0")
+    _ensure(cfg.velocity_tracking_controller.yaw_rate_gain >= 0.0, "velocity_tracking_controller.yaw_rate_gain must be >= 0")
+    _ensure(
+        cfg.velocity_tracking_controller.yaw_rate_damping >= 0.0,
+        "velocity_tracking_controller.yaw_rate_damping must be >= 0",
+    )
+    _ensure(cfg.velocity_tracking_controller.sideslip_gain >= 0.0, "velocity_tracking_controller.sideslip_gain must be >= 0")
+    _ensure(
+        cfg.velocity_tracking_controller.desired_surge_speed_max > 0.0,
+        "velocity_tracking_controller.desired_surge_speed_max must be > 0",
+    )
+    _ensure(
+        cfg.velocity_tracking_controller.desired_yaw_rate_max > 0.0,
+        "velocity_tracking_controller.desired_yaw_rate_max must be > 0",
+    )
+    _ensure(
+        cfg.velocity_tracking_controller.desired_surge_speed_max <= cfg.dynamics.u_max_soft,
+        "velocity_tracking_controller.desired_surge_speed_max must be <= dynamics.u_max_soft",
+    )
+    _ensure(
+        cfg.velocity_tracking_controller.desired_yaw_rate_max <= cfg.dynamics.r_max_soft,
+        "velocity_tracking_controller.desired_yaw_rate_max must be <= dynamics.r_max_soft",
+    )
 
     if cfg.scenario.scenario_id == "baseline_validation":
         _ensure(cfg.scenario.n_defenders == 0, "baseline_validation scenario must use n_defenders == 0")
@@ -375,6 +428,22 @@ def load_config(path: str | Path) -> ProjectConfig:
     attacker_apf_raw = raw.get("attacker_apf_baseline", _DEFAULT_ATTACKER_APF_BASELINE)
     attacker_heading_raw = raw.get("attacker_heading_baseline", _DEFAULT_ATTACKER_HEADING_BASELINE)
     tracking_controller_raw = raw.get("tracking_controller", _DEFAULT_TRACKING_CONTROLLER)
+    velocity_tracking_defaults = {
+        "type": _DEFAULT_VELOCITY_TRACKING_CONTROLLER["type"],
+        "surge_gain": tracking_controller_raw.get("surge_gain", _DEFAULT_VELOCITY_TRACKING_CONTROLLER["surge_gain"]),
+        "yaw_rate_gain": _DEFAULT_VELOCITY_TRACKING_CONTROLLER["yaw_rate_gain"],
+        "yaw_rate_damping": tracking_controller_raw.get(
+            "yaw_rate_damping", _DEFAULT_VELOCITY_TRACKING_CONTROLLER["yaw_rate_damping"]
+        ),
+        "sideslip_gain": _DEFAULT_VELOCITY_TRACKING_CONTROLLER["sideslip_gain"],
+        "desired_surge_speed_max": tracking_controller_raw.get(
+            "desired_speed_max", _DEFAULT_VELOCITY_TRACKING_CONTROLLER["desired_surge_speed_max"]
+        ),
+        "desired_yaw_rate_max": raw["dynamics"].get(
+            "r_max_soft", _DEFAULT_VELOCITY_TRACKING_CONTROLLER["desired_yaw_rate_max"]
+        ),
+    }
+    velocity_tracking_controller_raw = raw.get("velocity_tracking_controller", velocity_tracking_defaults)
 
     cfg = ProjectConfig(
         env=EnvConfig(**raw["env"]),
@@ -393,6 +462,8 @@ def load_config(path: str | Path) -> ProjectConfig:
         attacker_heading_baseline=AttackerHeadingBaselineConfig(**attacker_heading_raw),
         attacker_baseline=AttackerBaselineConfig(**attacker_baseline_raw),
         tracking_controller=TrackingControllerConfig(**tracking_controller_raw),
+        velocity_tracking_controller=VelocityTrackingControllerConfig(**velocity_tracking_controller_raw),
     )
     _validate(cfg)
     return cfg
+

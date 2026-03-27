@@ -1,11 +1,11 @@
-# last update: 2026-03-23 15:24:00
+﻿# last update: 2026-03-25 10:55:00
 # modifier: Codex
 
 import numpy as np
 from types import SimpleNamespace
 
 from usv_sim.guidance.apf_guidance import APFGuidance
-from usv_sim.guidance.reference import HeadingSpeedReference
+from usv_sim.guidance.reference import DesiredVelocityReference
 
 
 def _base_obs(rel_y: float) -> dict[str, np.ndarray]:
@@ -21,7 +21,7 @@ def _base_obs(rel_y: float) -> dict[str, np.ndarray]:
     }
 
 
-def test_apf_guidance_builds_reference_steering_around_obstacle() -> None:
+def test_apf_guidance_outputs_desired_velocity_reference() -> None:
     cfg = SimpleNamespace(
         attractive_gain=1.0,
         obstacle_repulsive_gain=5.0,
@@ -37,11 +37,11 @@ def test_apf_guidance_builds_reference_steering_around_obstacle() -> None:
         heading_large_threshold=0.7854,
         slowdown_distance=8.0,
     )
-    guidance = APFGuidance(cfg)
+    guidance = APFGuidance(cfg, desired_surge_speed_max=3.0, desired_yaw_rate_max=1.2)
     obs = _base_obs(rel_y=0.0)
     obs["obstacles_mask"][0] = 1.0
     obs["obstacles"][0] = np.array([5.0, 2.0, 5.385, 1.0], dtype=np.float32)
     reference = guidance.plan(obs)
-    assert isinstance(reference, HeadingSpeedReference)
-    assert abs(reference.desired_heading_error) > 0.0
-    assert 0.0 <= reference.desired_surge_speed <= cfg.surge_nominal
+    assert isinstance(reference, DesiredVelocityReference)
+    assert abs(reference.desired_yaw_rate) > 0.0
+    assert 0.0 <= reference.desired_surge_speed <= 3.0

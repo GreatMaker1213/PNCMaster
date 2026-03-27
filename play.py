@@ -1,5 +1,5 @@
-# last update: 2026-03-21 20点03分
-# modifier: KanviRen
+﻿# last update: 2026-03-25 10:40:00
+# modifier: Codex
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from usv_sim.config import load_config
-from usv_sim.envs.attack_defense_env import AttackDefenseEnv
+from usv_sim.envs.factory import create_env
 from usv_sim.policies.factory import create_attacker_policy
 
 
@@ -29,7 +29,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--config", required=True, help="Path to config yaml")
     parser.add_argument("--policy", default=None, choices=POLICY_CHOICES, help="Policy override")
     parser.add_argument("--seed", type=int, default=0, help="Episode seed")
-    parser.add_argument("--render-mode", default="human", choices=RENDER_MODE_CHOICES, help="Render mode (V0.4 only supports human)")
+    parser.add_argument("--render-mode", default="human", choices=RENDER_MODE_CHOICES, help="Render mode")
     return parser.parse_args(argv)
 
 
@@ -37,7 +37,7 @@ def run_episode(*, config_path: str, policy_type: str | None, seed: int, render_
     cfg = load_config(config_path)
     selected_policy = policy_type or cfg.attacker_policy.type
     policy = create_attacker_policy(cfg, selected_policy)
-    env = AttackDefenseEnv(cfg=cfg, render_mode=render_mode)
+    env = create_env(cfg, render_mode=render_mode)
 
     terminated = False
     truncated = False
@@ -55,6 +55,7 @@ def run_episode(*, config_path: str, policy_type: str | None, seed: int, render_
 
         summary = {
             "config_path": str(Path(config_path)),
+            "env_backend": cfg.env.backend,
             "policy_type": selected_policy,
             "seed": seed,
             "terminated": bool(terminated),
@@ -91,4 +92,3 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

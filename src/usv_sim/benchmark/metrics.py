@@ -1,4 +1,4 @@
-# last update: 2026-03-20 11:33:00
+# last update: 2026-03-25 11:02:00
 # modifier: Codex
 
 from __future__ import annotations
@@ -21,6 +21,7 @@ def aggregate_episode_metrics(episodes: list[dict[str, Any]]) -> dict[str, Any]:
             "policy_name": "unknown",
             "policy_type": "unknown",
             "policy_config_name": "unknown",
+            "env_backend": "unknown",
             "scenario_id": "unknown",
             "seed_set_summary": {"count": 0, "min": None, "max": None, "values": []},
             "num_episodes": 0,
@@ -58,6 +59,7 @@ def aggregate_episode_metrics(episodes: list[dict[str, Any]]) -> dict[str, Any]:
         "policy_name": episodes[0].get("policy_name", "unknown"),
         "policy_type": episodes[0].get("policy_type", "unknown"),
         "policy_config_name": episodes[0].get("policy_config_name", "unknown"),
+        "env_backend": episodes[0].get("env_backend", "unknown"),
         "scenario_id": episodes[0].get("scenario_id", "unknown"),
         "seed_set_summary": {
             "count": len(unique_seeds),

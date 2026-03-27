@@ -1,4 +1,4 @@
-# last update: 2026-03-20 11:36:00
+﻿# last update: 2026-03-25 11:12:00
 # modifier: Codex
 
 from __future__ import annotations
@@ -6,17 +6,15 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, TYPE_CHECKING
+from typing import Any
 
 import yaml
 
 from usv_sim.benchmark.metrics import aggregate_episode_metrics
 from usv_sim.config import ProjectConfig, load_config
+from usv_sim.envs.factory import create_env
 from usv_sim.policies.base import AttackerPolicy
 from usv_sim.policies.factory import create_attacker_policy
-
-if TYPE_CHECKING:
-    from usv_sim.envs.attack_defense_env import AttackDefenseEnv
 
 
 @dataclass(frozen=True)
@@ -88,6 +86,7 @@ def run_single_episode(
         "policy_name": policy_name,
         "policy_type": policy_type,
         "policy_config_name": policy_config_name,
+        "env_backend": getattr(getattr(getattr(env, "cfg", None), "env", None), "backend", "dynamic"),
         "scenario_id": str(episode_summary["scenario_id"]),
         "seed": int(episode_summary["seed"]),
         "terminated": bool(terminated),
@@ -136,9 +135,7 @@ def evaluate_from_config(config_path: str | Path, policy_type: str | None = None
     benchmark_cfg = load_benchmark_config(config_path)
     resolved_policy_type = policy_type or cfg.attacker_policy.type
     policy = create_attacker_policy(cfg, resolved_policy_type)
-    from usv_sim.envs.attack_defense_env import AttackDefenseEnv
-
-    env = AttackDefenseEnv(cfg=cfg)
+    env = create_env(cfg)
     try:
         policy_config_name = _resolve_policy_config_name(resolved_policy_type)
         episodes = evaluate_policy(
@@ -168,3 +165,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+

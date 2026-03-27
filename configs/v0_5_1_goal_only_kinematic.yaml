@@ -1,0 +1,124 @@
+﻿# last update: 2026-03-25 10:45:00
+# modifier: Codex
+
+env:
+  max_episode_steps: 400
+  dt_env: 0.20
+  sim_substeps: 4
+  render_mode: null
+  backend: kinematic
+
+action:
+  max_surge_force: 40.0
+  max_yaw_moment: 15.0
+
+dynamics:
+  m11: 30.0
+  m22: 40.0
+  m33: 10.0
+  d11: 8.0
+  d22: 12.0
+  d33: 6.0
+  u_max_soft: 4.0
+  v_max_soft: 2.0
+  r_max_soft: 1.2
+  hard_u_limit: 8.0
+  hard_v_limit: 4.0
+  hard_r_limit: 2.5
+
+scenario:
+  scenario_id: goal_only
+  boundary:
+    xmin: 0.0
+    xmax: 100.0
+    ymin: 0.0
+    ymax: 100.0
+  attacker_radius: 1.0
+  defender_radius: 1.0
+  goal_radius: 3.0
+  capture_radius: 4.0
+  n_defenders: 0
+  n_obstacles: 8
+  obstacle_radius_min: 2.0
+  obstacle_radius_max: 5.0
+  spawn_clearance: 8.0
+  goal_clearance: 8.0
+
+observation:
+  sensing_radius: 35.0
+  max_defenders: 4
+  max_obstacles: 8
+  dtype: float32
+
+reward:
+  progress_weight: 1.0
+  goal_reward: 100.0
+  capture_penalty: -100.0
+  collision_penalty: -100.0
+  boundary_penalty: -100.0
+  numerical_failure_penalty: -100.0
+  time_penalty: -0.01
+  control_l2_weight: -0.001
+
+defender_policy:
+  type: pure_pursuit
+  surge_gain: 0.8
+  heading_gain: 1.2
+
+attacker_policy:
+  type: goal_seeking
+
+attacker_goal_baseline:
+  type: goal_seeking
+  surge_nominal: 0.8
+  surge_turning: 0.3
+  surge_near_goal: 0.2
+  heading_gain: 1.5
+  yaw_rate_damping: 0.2
+  heading_large_threshold: 0.7854
+  slowdown_distance: 8.0
+
+attacker_apf_baseline:
+  attractive_gain: 1.0
+  obstacle_repulsive_gain: 9600.0
+  defender_repulsive_gain: 4.0
+  boundary_repulsive_gain: 2.0
+  influence_radius: 12.0
+  potential_eps: 0.25
+  surge_nominal: 0.7
+  surge_turning: 0.25
+  surge_near_goal: 0.2
+  heading_gain: 1.5
+  yaw_rate_damping: 0.2
+  heading_large_threshold: 0.7854
+  slowdown_distance: 8.0
+
+attacker_heading_baseline:
+  surge_nominal: 0.8
+  surge_turning: 0.3
+  surge_near_goal: 0.2
+  heading_gain: 1.6
+  yaw_rate_damping: 0.25
+  heading_large_threshold: 0.7854
+  slowdown_distance: 8.0
+
+tracking_controller:
+  type: heading_speed
+  heading_gain: 1.5
+  yaw_rate_damping: 0.2
+  surge_gain: 0.8
+  desired_speed_max: 3.0
+
+velocity_tracking_controller:
+  type: sideslip_compensated_velocity
+  surge_gain: 0.8
+  yaw_rate_gain: 1.6
+  yaw_rate_damping: 0.25
+  sideslip_gain: 0.4
+  desired_surge_speed_max: 3.0
+  desired_yaw_rate_max: 1.2
+
+benchmark:
+  name: goal_only_kinematic
+  seeds: [20,21, 22, 23, 24,25,262,7,28,292,120,121,212,123,214,215]
+  max_episodes: 15
