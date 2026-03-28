@@ -1,5 +1,5 @@
-# last update: 2026-03-19 09:35:00
-# modifier: Claude Code
+# last update: 2026-03-27 10:42:00
+# modifier: Codex
 
 from __future__ import annotations
 
@@ -11,11 +11,11 @@ from usv_sim.observation.visibility import VisibilityFilter
 def _make_world() -> WorldState:
     attacker = USVState(entity_id=0, x=0.0, y=0.0, psi=0.0, u=0.0, v=0.0, r=0.0, radius=1.0)
     defenders = (
-        USVState(entity_id=1, x=3.0, y=0.0, psi=0.0, u=0.0, v=0.0, r=0.0, radius=1.0),
+        USVState(entity_id=1, x=6.0, y=0.0, psi=0.0, u=0.0, v=0.0, r=0.0, radius=2.0),
         USVState(entity_id=2, x=8.0, y=0.0, psi=0.0, u=0.0, v=0.0, r=0.0, radius=1.0),
     )
     obstacles = (
-        CircularObstacle(entity_id=101, x=4.0, y=0.0, radius=1.0),
+        CircularObstacle(entity_id=101, x=6.0, y=0.0, radius=2.0),
         CircularObstacle(entity_id=102, x=9.0, y=0.0, radius=1.0),
     )
     return WorldState(

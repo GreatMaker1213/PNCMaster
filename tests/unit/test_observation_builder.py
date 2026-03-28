@@ -1,5 +1,5 @@
-# last update: 2026-03-19 09:35:00
-# modifier: Claude Code
+# last update: 2026-03-27 10:42:00
+# modifier: Codex
 
 from __future__ import annotations
 
@@ -50,5 +50,7 @@ def test_observation_builder_matches_schema_and_keeps_goal_visible() -> None:
     np.testing.assert_allclose(obs["goal"], np.array([100.0, 0.0, 100.0, 3.0], dtype=np.float32))
     np.testing.assert_allclose(obs["defenders"][0], np.zeros((7,), dtype=np.float32))
     assert obs["defenders_mask"].tolist() == [0.0, 1.0, 0.0]
+    assert float(obs["defenders"][1, 4]) == 1.0
     np.testing.assert_allclose(obs["obstacles"][0], np.zeros((4,), dtype=np.float32))
     assert obs["obstacles_mask"].tolist() == [0.0, 1.0, 0.0]
+    assert float(obs["obstacles"][1, 2]) == 1.0

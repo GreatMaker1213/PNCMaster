@@ -1,5 +1,5 @@
-# last update: 2026-03-18 22:09:12
-# modifier: Claude Code
+# last update: 2026-03-27 10:40:00
+# modifier: Codex
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from usv_sim.config import ObservationConfig
+from usv_sim.core.geometry import obstacle_clearance
 from usv_sim.core.math_utils import body_velocity_to_world, distance2d, world_to_ego
 from usv_sim.core.types import WorldState
 from usv_sim.observation.visibility import VisibilityFilter
@@ -93,10 +94,10 @@ class ObservationBuilder:
             rel_world_x = def_vx - att_vx
             rel_world_y = def_vy - att_vy
             rel_u, rel_v = world_to_ego(rel_world_x, rel_world_y, attacker.psi)
-            distance = distance2d(attacker.x, attacker.y, defender.x, defender.y)
+            clearance = distance2d(attacker.x, attacker.y, defender.x, defender.y) - attacker.radius - defender.radius
             dpsi = defender.psi - attacker.psi
             defender_rows[idx] = np.array(
-                [rel_x, rel_y, rel_u, rel_v, distance, np.cos(dpsi), np.sin(dpsi)],
+                [rel_x, rel_y, rel_u, rel_v, clearance, np.cos(dpsi), np.sin(dpsi)],
                 dtype=np.float32,
             )
             defender_mask[idx] = 1.0
@@ -110,8 +111,8 @@ class ObservationBuilder:
             dx = obstacle.x - attacker.x
             dy = obstacle.y - attacker.y
             rel_x, rel_y = world_to_ego(dx, dy, attacker.psi)
-            distance = distance2d(attacker.x, attacker.y, obstacle.x, obstacle.y)
-            obstacle_rows[idx] = np.array([rel_x, rel_y, distance, obstacle.radius], dtype=np.float32)
+            clearance = obstacle_clearance(attacker, obstacle)
+            obstacle_rows[idx] = np.array([rel_x, rel_y, clearance, obstacle.radius], dtype=np.float32)
             obstacle_mask[idx] = 1.0
 
         return {

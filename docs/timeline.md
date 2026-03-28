@@ -326,3 +326,41 @@
 - 继续补 planner-only 与 dynamic backend 的对照实验模板，使 `evaluate.py` 可以直接产出 dynamic vs kinematic 对照结果。
 - 后续若进入 V0.5.2/V0.6，可继续考虑更高层的 waypoint/path/trajectory reference 与 safety filter 链路。
 
+## 2026-03-27（V0.5.2）
+
+### 当前进度
+- 完成 V0.5.2 主线开发，统一 observation、visibility 与 APF 的距离语义到最近距离/净空距离（clearance）。
+- 完成 `VisibilityFilter` 修改：defender 与 obstacle 的 mask 判定从圆心距改为基于最近距离判定。
+- 完成 `ObservationBuilder` 修改：保持 `rel_x` / `rel_y` 不变，但将 defender / obstacle observation 中的 `distance` 槽位统一改为 clearance 语义。
+- 完成 `APFGuidance` 修改：排斥力大小的距离输入从圆心距改为 clearance，同时保留由相对坐标确定排斥方向的做法。
+- 清理 `APFGuidance` 中残留的调试输出与旧距离逻辑，使 APF 使用的距离语义与 observation / visibility 保持一致。
+- 完成对应单元测试更新，明确验证 visibility、observation builder 与 APF guidance 的 clearance 语义。
+- 在 `RL` 环境完成验证：
+  - `pytest tests/unit tests/integration -q`：`60 passed, 2 warnings`
+  - `python tests/smoke/test_env_smoke.py`：通过
+
+### 新增或改动文件
+- `src/usv_sim/observation/visibility.py`
+  将 defender / obstacle 的可见性判定从圆心距改为最近距离（clearance）。
+- `src/usv_sim/observation/builder.py`
+  保留相对坐标字段，改为在 defender / obstacle row 中写入 clearance 而非中心距。
+- `src/usv_sim/guidance/apf_guidance.py`
+  将 APF 排斥强度统一改为基于 clearance 计算，并清理调试残留。
+- `tests/unit/test_visibility.py`
+  更新测试场景与断言，验证 mask 判定基于 clearance 而非圆心距。
+- `tests/unit/test_observation_builder.py`
+  更新断言，验证 defender / obstacle 的 distance 槽位现在保存的是 clearance。
+- `tests/unit/test_apf_guidance.py`
+  更新测试输入，使 APF guidance 读取的 obstacle 距离语义与新 observation schema 一致。
+- `docs/timeline.md`
+  记录本次 V0.5.2 开发内容和变更文件，方便协作开发者上手。
+
+### 当前结论
+- 当前 project 的 observation distance、visibility mask 和 APF repulsive distance 语义已经统一到 clearance 定义。
+- V0.5.2 保持了最小扰动原则：没有删除现有 `rel_x` / `rel_y` 字段，也没有改动 `play.py` / `evaluate.py` / benchmark 主链路。
+- 当前平台在观测层与几何排斥层的距离定义更加一致，更接近真实测距型感知的直觉。
+
+### 下一步建议
+- 后续可继续评估 goal / boundary 相关距离语义是否也需要逐步向 clearance 语义对齐，但应谨慎控制版本扰动范围。
+- 如果继续迭代 APF，可在不改变当前 observation schema 的前提下进一步增强对 defender clearance 的利用方式和强度调度。
+- 若进入后续版本，可考虑把 clearance 相关辅助函数进一步沉淀到 `geometry.py`，减少不同模块重复实现几何距离逻辑。

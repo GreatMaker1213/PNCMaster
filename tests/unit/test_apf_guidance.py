@@ -1,4 +1,4 @@
-﻿# last update: 2026-03-25 10:55:00
+# last update: 2026-03-27 10:42:00
 # modifier: Codex
 
 import numpy as np
@@ -40,7 +40,8 @@ def test_apf_guidance_outputs_desired_velocity_reference() -> None:
     guidance = APFGuidance(cfg, desired_surge_speed_max=3.0, desired_yaw_rate_max=1.2)
     obs = _base_obs(rel_y=0.0)
     obs["obstacles_mask"][0] = 1.0
-    obs["obstacles"][0] = np.array([5.0, 2.0, 5.385, 1.0], dtype=np.float32)
+    # obstacles[..., 2] now carries clearance instead of center distance.
+    obs["obstacles"][0] = np.array([5.0, 2.0, 3.0, 1.0], dtype=np.float32)
     reference = guidance.plan(obs)
     assert isinstance(reference, DesiredVelocityReference)
     assert abs(reference.desired_yaw_rate) > 0.0
